@@ -1,0 +1,115 @@
+Ptch
+
+ptch_map_xyz.get_trgt_CPs -> obj.PctrCPs
+XXX line 8
+* SUPER
+** point3D
+posXYZm
+posXYpix
+posXYpixRaw
+vrgXY
+vrsXY
+** shape3D
+shape
+WHm
+WHpix
+WHdeg
+WHdegRaw
+
+rect
+relRect
+relPosPRC
+** win3D < rect3D < shape3D
+CppXm
+CppYm
+CppZm
+CppXpix
+CppYpix
+subjInfo
+** PointDispWin
+contain/convert between win/dispaly points
+
+pointD
+pointW
+win
+subjInfo
+** DspDispWin
+calculate dispariesties
+
+trgtDSP
+obsDSP
+diffDSP
+foc
+target
+winOpts
+subjInfo
+* disp
+* dispInfo
+just a name
+* subjInfo
+(subj3D)
+
+IPDm
+LExyz
+RExyz
+
+
+* trgtInfo
+trgtDsp
+dispORwin
+
+posXYZm
+    OR
+posXYpix
+    OR
+vrgXY
+vrsXY
+
+(posXYpixRaw)
+* trgt
+point3D
+
+
+* focInfo
+dispORwin
+
+
+posXYZm
+    OR
+posXYpix
+    OR
+vrgXY
+vrsXY
+
+(posXYpixRaw)
+* foc
+point3D
+
+* wininfo
+win3D opts
+    rect3D opts
+        shape3D opts 
+        
+WHm    
+    OR
+WHpix
+    OR
+Whdeg
+    OR
+wHdegraw
+
+posXYZm
+    OR
+posXYpix
+    OR
+vrgXY
+vrsXY
+
+
+* win
+DspDispWin
+   pointD 
+   point W
+   win % win3D
+* disp
+
