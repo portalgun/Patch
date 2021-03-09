@@ -9,6 +9,7 @@ methods
         %    we want to know how much to shift the patch
         dsp=obj.win.diffDSP;
         CPs=cellfun(@fliplr, obj.win.trgt.pointW.posXYpix(), UO,false);
+        % IN CORNER COORDINATES (RIGHT?)
 
         [obj.PctrCPs{1}, obj.PctrCPs{2}]= ...
         XYZ.add_dsp(CPs{1},...
@@ -20,6 +21,16 @@ methods
                     obj.Disp.CppZm,...
                     obj.subjInfo.IPDm ...
         );
+
+        scrnCtr=(fliplr(obj.Disp.scrnXYpix)./2);
+        buffCtr=(obj.PszRCbuff./2);
+        for i = 1:2
+            % from scrn corner to central coordinates...
+            obj.PctrCPs{i}=obj.PctrCPs{i}-scrnCtr;
+            % ... to buff corner coordinates
+            obj.PctrCPs{i}=obj.PctrCPs{i}+buffCtr;
+
+        end
     end
     function obj=get_map_CPs_bi(obj);
         for i=1:2
@@ -35,8 +46,10 @@ methods
         % SHIFT CPS BY APPLIED DISPARITY
         CPs{1}=obj.CPsBuff{i}{1}-obj.PctrCPs{1};
         CPs{2}=obj.CPsBuff{i}{2}-obj.PctrCPs{2};
+        %CPs{1}
+        %CPs{2}
 
-        % Patch pix to display pix
+        % Patch pix to display pix, resize to window size
         R=fliplr(obj.Disp.scrnXYmm/1000)./obj.win.win.WHm;
         CPs{1}=CPs{1}.*R;
         CPs{2}=CPs{2}.*R;

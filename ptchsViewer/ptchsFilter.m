@@ -1,7 +1,6 @@
 classdef ptchsFilter < handle
 properties
     ptchs
-    ptch
 
     selName
     selIdx
@@ -233,7 +232,7 @@ methods
     end
     function obj=get_ptch(obj,pidx)
         obj.pidx=pidx;
-        obj.ptch=obj.ptchs.get_patch(pidx);
+        obj.ptchs.ptch=obj.ptchs.get_patch(pidx);
     end
 %%
     function obj=next(obj)

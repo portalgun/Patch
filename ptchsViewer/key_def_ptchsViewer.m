@@ -13,7 +13,7 @@ methods
         obj.n('\sS') ={'run','flag_prev'};
 
         obj.n('a')   = {{'run','mode','c'}, {'set','str','insert_str','disparity '}};;
-        obj.n('b')   ='';
+        obj.n('b')   = {'run','b'};
         obj.n('c')   = {{'run','mode','c'}, {'set','str','insert_str','clim '}};;
         obj.n('d')   ='';
         obj.n('e')   ='';

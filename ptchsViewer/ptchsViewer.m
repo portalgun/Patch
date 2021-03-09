@@ -30,6 +30,9 @@ properties
     clim
     rmsFix
     dcFix
+    buffORptch='buff'
+    bDSP=0
+    bDSPAll=0;
 
     sp=[];
     pos
@@ -90,7 +93,7 @@ methods
         catch ME
             ListenChar(1);
             warning('on','MATLAB:hg:AutoSoftwareOpenGL');
-            close all  % XXX
+            %close all  % XXX
             rethrow(ME);
         end
 
@@ -170,8 +173,8 @@ methods
         %end
     end
     function obj=get_map_info(obj);
-        rms=obj.F.ptch.im.RMS;
-        dc=obj.F.ptch.im.DC;
+        rms=obj.F.ptchs.ptch.im.RMS;
+        dc=obj.F.ptchs.ptch.im.DC;
 
         obj.mapInfo=['RMS       '  num2strSane(rms,3,1,1) newline ...
                      'DC        '  num2strSane(dc,3,1,1)  newline ];
@@ -253,10 +256,15 @@ methods
     function obj=get_opts_info(obj)
 
         fixedStr='';
-        if obj.F.ptch.im.bContrastFixed
+        if obj.F.ptchs.ptch.bDSP
+            val=obj.F.ptchs.ptch.trgtInfo.trgtDsp*60;
+            dsp=num2strSane(val,3,1,1);
+            fixedStr=[fixedStr 'Disparity ' dsp ' arcmin' newline];
+        end
+        if obj.F.ptchs.ptch.im.bContrastFixed
             fixedStr=[fixedStr 'RMS fixed ' newline ];
         end
-        if obj.F.ptch.im.bLuminanceFixed
+        if obj.F.ptchs.ptch.im.bLuminanceFixed
             fixedStr=[fixedStr 'DC fixed  ' newline ];
         end
         if ~isempty(obj.clim)
@@ -295,7 +303,7 @@ methods
 
         str=[ ...
                  str ...
-               obj.div ...
+                 obj.div ...
                  obj.optsInfo newline ...
                  obj.sortInfo newline...
                  obj.filterInfo newline ...
@@ -351,6 +359,10 @@ methods
                 obj.pos=obj.sp.position;
                 obj.pos(3:4)=obj.pos(3:4)*0.95;
                 obj.bUpdate.plot=1;
+            case 'b'
+                obj.toggle_patch_or_buff();
+
+                obj.bUpdate.plot=1;
             case 'r'
                 obj.bUpdate.plot=1;
             otherwise
@@ -375,6 +387,7 @@ methods
         switch cmd{1}
             case 'next'
                 obj.F.next();
+                obj.bDSP=obj.bDSPAll;
             case 'prev'
                 obj.F.prev();
             case 'first'
@@ -458,8 +471,8 @@ methods
                     fld=str2double(strs{i+1});
 
 
-                    if l > 2 & strs{i+1} == '1'
-                        obj.fix_disparity(fld);
+                    if l > 2 & strs{i+2} == '1'
+                        obj.fix_disparity_all(fld);
                     else
                         obj.fix_disparity(fld);
                     end
@@ -479,7 +492,7 @@ methods
                     if ~isnum(strs{i+1}); return; end
                     obj.rmsFix=str2double(strs{i+1});
 
-                    if l > 2 & strs{i+1} == '1'
+                    if l > 2 & strs{i+2} == '1'
                         obj.fix_contrast_all();
                     else
                         obj.fix_contrast();
@@ -492,7 +505,7 @@ methods
                     if ~isnum(strs{i+1}); return; end
                     obj.dcFix=str2double(strs{i+1});
 
-                    if l > 2 & strs{i+1} == '1'
+                    if l > 2 & strs{i+2} == '1'
                         obj.fix_contrast_all();
                     else
                         obj.fix_contrast();
@@ -534,15 +547,25 @@ methods
             end
         end
     end
+    function obj=toggle_patch_or_buff(obj)
+        if strcmp(obj.buffORptch,'buff')
+            obj.buffORptch='ptch';
+            if  ~obj.bDSP
+                obj.fix_disparity(0);
+            end
+        elseif strcmp(obj.buffORptch,'ptch')
+            obj.buffORptch='buff';
+        end
+    end
 %% RMS/DC
     function obj=fix_contrast(obj)
-        obj.F.ptch.im.fix_contrast_bi(obj.rmsFix,obj.dcFix);
+        obj.F.ptchs.ptch.im.fix_contrast_bi(obj.rmsFix,obj.dcFix);
     end
     function obj=unfix_contrast(obj)
-        obj.F.ptch.im.unfix_contrast();
+        obj.F.ptchs.ptch.im.unfix_contrast();
     end
     function obj=unfix_dc(obj)
-        obj.F.ptch.im.unfix_dc();
+        obj.F.ptchs.ptch.im.unfix_dc();
     end
     %% ALL
     function obj=fix_contrast_all(obj)
@@ -562,9 +585,11 @@ methods
 %% DSP
     function obj=unfix_disparity_all(obj)
         obj.F.ptchs.DSP=0;
+        obj.bDSPAll=0;
     end
     function obj=unfix_disparity(obj)
-        obj.F.ptch.DSP=0;
+        obj.F.ptchs.ptch.DSP=0;
+        obj.bDSP=0;
     end
     function obj=fix_disparity_all(obj,disparity)
         if isempty(obj.Disp)
@@ -577,26 +602,28 @@ methods
             obj.F.ptchs.init_disp(trgtInfo,focInfo,obj.Disp,winInfo);
         else
 
-            obj.F.ptchs.apply_disparity(disparity);
+            obj.F.ptchs.set_disparity(disparity/60);
 
         end
 
         %% APPLY TO CURRENT
         obj.fix_disparity(disparity);
+        obj.bDSPAll=1;
     end
     function obj=fix_disparity(obj,disparity)
         if isempty(obj.Disp)
             obj.Disp=obj.get_display();
         end
 
-        if ~obj.F.ptch.bDSP
+        if ~obj.F.ptchs.ptch.bDSP
             trgtInfo=obj.get_trgtInfo(disparity);
             focInfo=obj.get_focInfo();
             winInfo=obj.get_winInfo();
-            obj.F.ptch.init_disp(trgtInfo,focInfo,obj.Disp,winInfo);
+            obj.F.ptchs.ptch.init_disp(trgtInfo,focInfo,obj.Disp,winInfo);
         else
-            obj.F.ptch.apply_disparity(disparity);
+            obj.F.ptchs.ptch.set_disparity(disparity/60);
         end
+        obj.bDSP=1;
     end
 %% GET
     function trgtInfo=get_trgtInfo(obj,disparity)
@@ -619,7 +646,6 @@ methods
         set(gca,'Units','pixels');
         pos=get(gca,'Position');
         winInfo.WHpix=pos(3:4);
-        winInfo.WHpix
         winInfo.posXYZm=[0 0 obj.Disp.scrnZmm/1000];
     end
     function Disp=get_display(obj)
@@ -628,7 +654,7 @@ methods
 %% PLOT
     function obj=plot(obj)
         figure(obj.f)
-        [obj.sp]=obj.F.ptch.plot(obj.sp, obj.clim, obj.pos);
+        [obj.sp]=obj.F.ptchs.ptch.plot(obj.sp, obj.clim, obj.pos, obj.buffORptch, logical(obj.dcFix));
         obj.pos=[];
         drawnow
     end
@@ -645,7 +671,7 @@ methods(Static)
     function p=get_parseOpts()
         p={...
            'rmsFix',[],'isallnum1' ...
-          ;'dcFix' ,[],'isallnum1' ...
+          ;'dcFix' ,0.5,'isallnum1' ...
           ;'clim', [],'isallnum2' ...
           };
     end

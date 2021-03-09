@@ -68,7 +68,7 @@ methods
         end
 
         flds=fieldnames(obj.mapsbuff);
-        for m=1:numel(obj.maps)
+        for m=1:numel(flds)
             fld=flds{m};
             if strcmp(fld,'CPs')
                 continue

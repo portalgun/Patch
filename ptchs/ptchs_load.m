@@ -12,9 +12,6 @@ methods
         else
             p=obj.INDS{ind};
         end
-        if obj.bDSP
-            obj.init_disp_ptch(p,ind);
-        end
         p=obj.apply_ptchOpts(p,ind);
     end
     function p=apply_ptchOpts(obj,p,ind)
@@ -31,12 +28,17 @@ methods
             elseif size(prp,1) > 1 && isprop(p.im,fld)
                 p.im.(fld)=prp(ind,:);
             elseif isprop(p.im,fld)
-                p.im.(fld)=prp(ind,:);
+                p.im.(fld)=prp();
+            else
+                fld
+                dk
             end
 
         end
-        p.im.init2();
-        obj.init_disp(p.trgtInfo,p.focInfo,p.Disp,p.winInfo,p.subjInfo);
+        p.init_disp();
+        if ~p.bDSP
+            p.im.init2;
+        end
     end
 %% EXP
     function obj=load_interval(obj,trl,intrvl)

@@ -1,6 +1,8 @@
 classdef ptchs < handle & ptchs_file & ptchs_load & ptchs_dsp & ptchs_plot
 % LOADER SELECTOR
 properties
+    ptch
+
     name
 
     fnames % XXX rm from sel table

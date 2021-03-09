@@ -139,6 +139,7 @@ methods(Static=true)
         obj.to_double_fun();
         obj.load_db();
         obj.load_genOpts();
+
         obj.get_default_masks();
         obj.apply_map_bi('pht',[]);
     end

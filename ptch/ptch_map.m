@@ -11,17 +11,30 @@ methods
         if ~exist('mskName','var')
             mskName=[];
         end
-        for k = 1:(obj.bStereo+1)
+        for k = 1:min(2,(obj.bStereo+1))
             obj.apply_map(k,mapName,mskName);
         end
     end
-    function obj=apply_map(obj,k,mapName,mskName)
+    function obj=reapply_map_bi(obj)
+        Opts=obj.im.get_opts();
+        obj.clear_im();
+        imList=obj.imList;
+        obj.clear_imList();
+        for k = 1:(obj.bStereo+1)
+            for f=  1:size(imList{k},1)
+                mapName=imList{k}{f,1};
+                mskName=imList{k}{f,2};
+                obj.apply_map(k,mapName,mskName,Opts);
+            end
+        end
+    end
+    function obj=apply_map(obj,k,mapName,mskName, Opts)
         if ~exist('mskName','var') || isempty(mskName)
             mskName='all';
         end
         if obj.bDSP
             fldmap='maps';
-            fldsk='msks';
+            fldmsk='msks';
         else
             fldmap='mapsbuff';
             fldmsk='msksbuff';
@@ -38,12 +51,20 @@ methods
         end
 
         obj.init_map(map,msk,k);
-        if k==(obj.bStereo+1)
+        if k==min(2,(obj.bStereo+1))
             obj.im=Map(obj.tmp{1},obj.tmp{2});
             obj.tmp=cell(1,2);
+            if exist('Opts','var') && isstruct(Opts)
+                obj.im.apply_opts(Opts);
+            end
         end
+        if isempty(obj.imList{k})
+            obj.imList{k}=cell(0,2);
+        end
+        obj.imList{k}{end+1,1}=mapName;
+        obj.imList{k}{end,2}=mskName;
     end
-    function init_map(obj,map,msk,k)
+    function obj=init_map(obj,map,msk,k)
         nmap=map;
         map(~msk)=0;
         if  ~isempty(obj.im) && isa(obj,'Map')
@@ -55,9 +76,15 @@ methods
         end
 
     end
+    function obj=clear_im(obj)
+        obj.im=[];
+    end
+    function obj=clear_imList(obj)
+        obj.imList=cell(1,2);
+    end
 %% SELECT
     function obj=select_map_bi(obj,k,mapName)
-        for i = 1:(obj.bStereo+1)
+        for i = 1:min(2,(obj.bStereo+1))
             obj.select_map(k,mapName);
         end
     end
@@ -66,7 +93,7 @@ methods
     end
 %% RESET
     function obj= reset_map_disp_bi(obj)
-        for k = 1:(obj.bSetereo+1)
+        for k = 1: min(2,(obj.bStereo+1))
             obj.reset_map_disp(k);
         end
     end

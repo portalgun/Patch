@@ -2,8 +2,11 @@ classdef ptch_dsp < handle
 methods
     %% INIT 2
     function obj=init_disp(obj,trgtInfo,focInfo,Disp,winInfo,subjInfo)
+        % NOTE EVERYTHING IN BASE UNITS (DEGREES)
         % from ptchs, called on by apply_ptchOpts
-        obj.trgtInfo=trgtInfo;
+        if exist('trgtInfo','var') && ~isempty(trgtInfo)
+            obj.trgtInfo=trgtInfo;
+        end
 
         if exist('Disp','var') && isa(Disp,'DISPLAY')
             obj.Disp=Disp;
@@ -11,9 +14,9 @@ methods
         elseif  exist('Disp','var') && ischar(Disp)
             obj.DispInfo=Disp;
             obj.Disp=DISPLAY(Disp);
-        else
-            obj.DispInfo=DISPLAY.get_name_from_hostname();
-            obj.Disp=DISPLAY(obj.DispInfo);
+        elseif isempty(obj.Disp)
+            obj.Disp=DISPLAY.get_display_from_hostname();
+            obj.DispInfo=DISPLAY.get_name_from_display(obj.Disp);
         end
         if exist('winInfo','var') && ~isempty(winInfo)
             obj.winInfo=winInfo;
@@ -23,9 +26,9 @@ methods
         end
         if exist('focInfo','var') && ~isempty(focInfo)
             obj.focInfo=focInfo;
-        else
+        elseif isempty(obj.focInfo)
             obj.focInfo=struct();
-            obj.focInfo.posXYZm=obj.wininfo.posXYZm;
+            obj.focInfo.posXYZm=obj.winInfo.posXYZm;
             obj.focInfo.dispORwin='disp';
         end
         if exist('subjInfo','var') && ~isempty(subjInfo)
@@ -42,6 +45,8 @@ methods
         end
     end
     function obj=update_dsp(obj)
+        % NOTE EVERYTHING IN BASE UNITS (DEGREES)
+
         obj.get_win();
         obj.get_trgt_CPs();
 
@@ -56,6 +61,12 @@ methods
             obj.get_map_vrg_bi();
         end
         obj.crop_mapsbuff_bi();
+
+        % IM
+        obj.get_default_masks();
+
+        obj.reapply_map_bi();
+        obj.im.init2();
         obj.bDSP=1;
     end
 %% GET
@@ -137,6 +148,7 @@ methods
     end
     %% TRGT
     function obj=set_disparity(obj,disparity)
+        % NOTE EVERYTHING IN BASE UNITS (DEGREES)
         if ~obj.bDSP
             obj.trgtInfo.trgtDsp=disparity;
             return

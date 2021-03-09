@@ -47,6 +47,7 @@ properties
     texNames
 
     im % main dispaly
+    imList=cell(1,2)
 
     wdwInfo
     wdw
@@ -76,6 +77,7 @@ properties
     bDSP=0
 end
 properties(Hidden=true)
+    bnewplotflag=1
     badflag=0
     src
         % xyz

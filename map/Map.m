@@ -24,7 +24,6 @@ properties
     bUpdated
     bAutoUpdate=1
     dnk=1
-    bAuotUpdate=1
     bContrastFixed=0
     bLuminanceFixed=0
     bWindowed=0
@@ -497,12 +496,35 @@ methods
             titl=[titl ' ' obj.LorR ' Anchor'];
         end
     end
+    function obj=apply_opts(obj,Opts)
+        obj.LorR  =Opts.LorR;
+        obj.index =Opts.index;
+        obj.rmsFix=Opts.rmsFix;
+        obj.dcFix =Opts.dcFix;
+        obj.dnkFix=Opts.dnkFix;
+    end
+    function Opts=get_opts(obj)
+        Opts=struct();
+        Opts.LorR=obj.LorR;
+        Opts.index=obj.index;
+        Opts.rmsFix=obj.rmsFix;
+        Opts.dcFix=obj.dcFix;
+        Opts.dnkFix=obj.dnkFix;
+
+    end
 end
 methods(Static=true)
 %% CROP
     function m=crop_f(im,PctrRC,PszRC,interpType)
         if ~exist('interpType','var')  || isempty(interpType)
             interpType='linear';
+        end
+        if size(im,3)>1
+            m=zeros([PszRC size(im,3)]);
+            for i = 1:size(im,3)
+                m(:,:,i)=Map.crop_f(im(:,:,i),PctrRC,PszRC,interpType);
+            end
+            return
         end
         PszXY=fliplr(PszRC);
 
