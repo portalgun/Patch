@@ -19,52 +19,77 @@ methods
         for i = 1:length(flds)
             fld=flds{i};
             prp=obj.ptchOpts.(fld);
+            bIm=false;
             if isempty(prp)
                 continue
             elseif size(prp,1) > 1 && isprop(p,fld)
-                p.(fld)=prp(ind,:);
+                P=prp(ind,:);
             elseif isprop(p,fld)
-                p.(fld)=prp;
+                P=prp;
             elseif size(prp,1) > 1 && isprop(p.im,fld)
-                p.im.(fld)=prp(ind,:);
+                bIm=true;
+                P=prp(ind,:);
             elseif isprop(p.im,fld)
-                p.im.(fld)=prp();
+                bIm=true;
+                P=prp();
             else
                 fld
                 dk
             end
 
+
+            % handle meta vars
+            if ischar(P) && startsWith('@')
+                fld=P(2:end);
+                if bIm
+                    if isfield(p.im,fld)
+                        P=p.im.(fld);
+                    elseif isfield(p,fld)
+                        P=p.(fld);
+                    end
+                else
+                    if isfield(p,fld)
+                        P=p.(fld);
+                    elseif isfield(p.im,fld)
+                        P=p.im.(fld);
+                    end
+                end
+            end
+
+
+            if bIm
+                p.im.(fld)=P;
+            else
+                p.(fld)=P;
+            end
+
         end
-        p.init_disp();
         if ~p.bDSP
             p.im.init2;
+        else
+            p.init_disp();
         end
     end
 %% EXP
-    function obj=load_interval(obj,trl,intrvl)
-        inds=find(obj.idx.trls==trl & obj.idx.intrvl==intrvl);
-        obj.load_patches(obj.inds);
-    end
-    function obj=load_cmp(obj,trl,cmp)
-        if ~exist('cmp','var') || isempty(cmp)
-            cmp=1;
-        end
-        inds=find(obj.idx.trls==trl & obj.idx.cmp==0);
-        obj.load_patches(obj,inds);
-    end
-    function obj=load_std(obj,trl)
-        inds=find(obj.idx.trls==trl & obj.idx.cmp==0);
-        obj.load_patches(obj,inds);
-    end
-    function obj=load_trials(obj,trls)
-        inds=find(ismember(obj.idx.trls,trls));
-        obj.load_patches(obj,inds);
-    end
-    function obj=load_trial(obj,trl)
-        inds=find(obj.idx.trls==trl);
-        obj.load_patches(obj,inds);
-    end
 %% BASIC LOAD
+    function P=load_patches_as_4Darray(obj,inds)
+        inds=inds(:);
+        p=obj.get_patch(1);
+        PszRC=size(p.im.img{1}).*[1,2];
+        P=zeros([PszRC, 1, numel(inds)]);
+        for i = 1:length(inds)
+            p=obj.get_patch(inds(i));
+            P(:,:,1,i)=[p.im.img{1} p.im.img{2}];
+        end
+    end
+    function obj=load_patches_as_cell(obj,inds)
+        P=cell(length(inds),2);
+        for i = 1:inds
+            p=obj.get_patch(inds(i));
+            p{i,1}=p.im.img{1};
+            p{i,2}=p.im.img{2};
+        end
+    end
     function obj=load_all_patches_minimal(obj)
         % TODO
     end

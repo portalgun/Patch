@@ -1,4 +1,4 @@
-classdef ptchs < handle & ptchs_file & ptchs_load & ptchs_dsp & ptchs_plot
+classdef ptchs < handle & ptchs_file & ptchs_load & ptchs_dsp & ptchs_plot & ptchs_blk
 % LOADER SELECTOR
 properties
     ptch

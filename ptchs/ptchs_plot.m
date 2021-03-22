@@ -36,5 +36,50 @@ methods
         axis image;
         set(gca,'YDir','normal');
     end
+    function montage_bins(obj,bins,nRows)
+        if (~exist('bins','var') || isempty(bins)) && obj.bBlk
+            bins=unique(obj.blkBins(~isnan(obj.blkBins)));
+        elseif (~exist('bins','var') || isempty(bins))
+            bins=unique(obj.idx.B);
+        end
+        if ~exist('nRows','var')
+            nRows=15;
+        end
+        clims=[];
+        nCol=numel(bins);
+        %nCol=nan;
+        inds=zeros(nRows,nCol);
+        rng(1);
+        for i = 1:length(bins)
+            if obj.bBlk;
+                idx=find( obj.idx.B==bins(i) & ismember(obj.idx.P,obj.Blk.blk('P').ret()));
+            else
+                idx=find(obj.idx.B==bins(i));
+            end
+            %inds(i,:)=idx(randperm(length(idx),nRows));
+            inds(:,i)=idx(randperm(length(idx),nRows));
+        end
+        inds=transpose(inds);
+        P=obj.load_patches_as_4Darray(inds);
+        montage(P,'DisplayRange',clims,'Size',[nRows nCol]);
+    end
+    function montage(obj,inds,nRows)
+        if ~exist('nRows','var')
+            nRows=10;
+        end
+
+        if ~exist('inds','var') || isempty(inds)
+            inds=idx(randperm(length(obj.fnames),nRows));
+        end
+        clims=[];
+        P=obj.load_patches_as_4Darray(inds);
+
+        if ~exist('nRows','var') || isempty(nRows)
+                nRows = ceil(sqrt(size(P,4)));
+        end
+        %montage(P,'DisplayRange','Size',[nRows NaN]);
+    end
 end
 end
+
+%load('/Volumes/Data/.daveDB/ptch/LRSI/pch/a8a3837c874442e61e3d901561ea9f01/_P_.mat')
