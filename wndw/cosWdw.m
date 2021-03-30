@@ -1,4 +1,4 @@
-classdef cosWndw
+classdef cosWdw
 properties
     W
     Psz
@@ -6,7 +6,7 @@ properties
     dskDm
 end
 methods
-    function W=cosWndw(PszRCT,rmpDm,dskDm,symInd)
+    function obj=cosWdw(PszRCT,rmpDm,dskDm,symInd)
     %function W=cos(PszRCT,rmpDm,dskDm,symInd)
     % W=cosWndw([16 16],[16 16],[0 4]);
     % W=cosWndw([16 16 16], [16 16 8], [0 0 8], 1);
@@ -15,17 +15,20 @@ methods
         obj.Psz=PszRCT;
         obj.rmpDm=rmpDm;
         obj.dskDm=dskDm;
+        if numel(obj.dskDm)==1 && numel(obj.Psz > 1)
+            obj.dskDm=repmat(obj.dskDm,1,numel(obj.Psz));
+        end
 
 
-        rmpR=rmpDm/2;
-        dskR=dskDm/2;
+        rmpR=obj.rmpDm/2;
+        dskR=obj.dskDm/2;
 
+        % SYM
         if ~exist('symInd','var') || isempty(symInd)
             symInd=0;
         end
-
-        n=numel(PszRCT);
-        if numel(symInd) & n > 1
+        n=numel(obj.Psz);
+        if numel(symInd)==1 & n > 1
             symInd=repmat(symInd,n,1);
         end
 
@@ -35,16 +38,19 @@ methods
         for g = G
             i=i+1;
             bInd=symInd==g;
-            WW{i}=main(PszRCT(bInd),rmpR(bInd),dskR(bInd),g);
+            WW{i}=main(obj.Psz(bInd),rmpR(bInd),dskR(bInd),g);
         end
-        W=combine_fun(WW);
+        obj.W=combine_fun(WW);
         function W=main(PszRCT,rmpR,dskR,bSym)
             n=numel(PszRCT);
             bEven=transpose(num2cell(double(mod(PszRCT,2)==0)));
             freq = 1./(2*rmpR); % cycles per pixel
 
             R=smpPos(1,PszRCT);
-            R=cellfun(@(x,y) x+y*.5 ,R,bEven,'UniformOutput',false);
+            if ~iscell(R)
+                R={R};
+            end
+            R=cellfun(@(x,y) x+y*0.5 ,R,bEven,'UniformOutput',false);
             if bSym
                 GRID=cell(1,n);
                 [GRID{:}]= ndgrid(R{:});
@@ -78,6 +84,12 @@ methods
             W(ind) = 0.5.*(1 + cos(2.*pi.*X));
             W(R>(dskR(1)+rmpR(1))) = 0;
         end
+    end
+end
+methods(Static)
+    function W=new(PszRCT,rmpDm,dskDm,symInd)
+        obj=cosWdw(PszRCT,rmpDm,dskDm,symInd);
+        W=obj.W;
     end
 end
 end

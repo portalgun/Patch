@@ -1,4 +1,4 @@
-classdef wndw
+classdef wdw
 methods(Static=true)
     function obj=cos(PszRCT,rmpDm,dskDm,symInd)
         if ~exist('symInd','var')

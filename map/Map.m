@@ -44,7 +44,7 @@ properties
     rmsFix
     dcFix
     dnkFix
-    winOpts
+    wdwInfo
 end
 properties(Hidden=true)
 
@@ -101,6 +101,11 @@ methods
         end
     end
     function obj=init2(obj)
+        if ~isempty(obj.wdwInfo) && numel(fieldnames(obj.wdwInfo))~=0
+            obj.gen_window();
+        end
+        obj.contrast();
+        obj.window();
         obj.fix_contrast_bi(obj.rmsFix, obj.dcFix);
         % TODO DNK
         % TODO wdw? obj.
@@ -179,17 +184,16 @@ methods
         obj.bContrastImg=1;
     end
     function [img,Ib]=contrast_helper(obj,img)
-        null(obj);
         Ib=mean(mean(img));
         img=(img-Ib)/Ib;
     end
     function obj=uncontrast(obj)
         if strcmp(obj.monoORbino,'mono');
-            obj.Limg=obj.uncontrast_helper(obj.Limg);
-            obj.Rimg=obj.uncontrast_helper(obj.Rimg);
+            obj.img{1}=obj.uncontrast_helper(obj.img{1});
+            obj.img{2}=obj.uncontrast_helper(obj.img{2});
         else strcmp(obj.monoORbino,'bino');
-            img=obj.uncontrast_helper([obj.Limg obj.Rimg]);
-            [obj.Limg,obj.Rimg]=obj.split_fun(img);
+            img=obj.uncontrast_helper([obj.img{1} obj.img{2}]);
+            [obj.img{1},obj.img{2}]=obj.split_fun(img);
         end
         obj.bContrastImg=0;
     end
@@ -218,6 +222,7 @@ methods
             bSaveOldRms=1;
         else
             bSaveOldRms=0;
+
         end
         if ~obj.bLuminanceFixed
             bSaveOldDC=1;
@@ -246,13 +251,13 @@ methods
         dcOld=cell(1,2);
         rmsOld=cell(1,2);
         if isempty(obj.img{2})
-            [obj.img{1},rmsOld{1},dcOld{2}]=Map.fix_contrast(obj.img{1},RMSfix,obj.W{1},DCfix,nChnl);
+            [obj.img{1},rmsOld{1},dcOld{2}]=Map.fix_contrast(obj.img{1},RMSfix,obj.W{1},DCfix,nChnl,obj.bContrastImg);
         elseif isequal(monoORbino,'mono')
 
-            [obj.img{1},rmsOld{1},dcOld{1}]=Map.fix_contrast(obj.img{1},RMSfix,obj.W{1},DCfix,nChnl);
-            [obj.img{2},rmsOld{2},dcOld{2}]=Map.fix_contrast(obj.img{2},RMSfix,obj.W{2},DCfix,nChnl);
+            [obj.img{1},rmsOld{1},dcOld{1}]=Map.fix_contrast(obj.img{1},RMSfix,obj.W{1},DCfix,nChnl,obj.bContrastImg);
+            [obj.img{2},rmsOld{2},dcOld{2}]=Map.fix_contrast(obj.img{2},RMSfix,obj.W{2},DCfix,nChnl,obj.bContrastImg);
         elseif isequal(monoORbino,'bino')
-            [img,rmsOld{1},dcOld{1}]=Map.fix_contrast([obj.img{1} obj.img{2}],RMSfix,[obj.W{1} obj.W{2}],DCfix,nChnl);
+            [img,rmsOld{1},dcOld{1}]=Map.fix_contrast([obj.img{1} obj.img{2}],RMSfix,[obj.W{1} obj.W{2}],DCfix,nChnl,obj.bContrastImg);
             [obj.img{1},obj.img{2}]=obj.split_fun(img);
         end
         if obj.bAutoUpdate
@@ -279,29 +284,50 @@ methods
             error('No window not defined');
         end
 
-        % TODO
-        if obj.bContrastImg
-            cntr=obj.contrast;
-            cntr=cntr.window_helper;
-            obj=cntr.uncontrast;
+        if ~obj.bContrastImg
+            obj.contrast();
+            obj.window_helper;
+            obj.uncontrast;
+        else
+            obj.window_helper;
         end
         obj=obj.update;
     end
     function obj=window_helper(obj)
         % TODO
-        W=lum(obj.winTex{1},obj.winTex{2});
-        W=W.contrast;
+        W=Map(obj.winTex{1},obj.winTex{2});
+        W=W.contrast();
         obj.imgOrig{1}=obj.img{1};
         obj.imgOrig{2}=obj.img{2};
-        obj.img{1}=obj.img{1}.*obj.W{1}+(~obj.W{1}.*W.Limg);
-        obj.img{2}=obj.img{2}.*obj.W{2}+(~obj.W{2}.*W.Rimg);
+        obj.img{1}=obj.img{1}.*obj.W{1}+(~obj.W{1}.*W.img{1});
+        obj.img{2}=obj.img{2}.*obj.W{2}+(~obj.W{2}.*W.img{2});
         obj.bWindowed=1;
     end
-    function obj=window_selector(obj,windowType,varargin)
-        % TODO
-        switch windowType
-        case 'cos'
-            obj.cos_window(varargin{:});
+    function obj=gen_window(obj)
+        flds=fieldnames(obj.wdwInfo);
+        w=obj.wdwInfo;
+        for i=1:length(flds)
+            fld=flds{i};
+            val=w.(fld);
+            if ~iscell(val)
+                w.(fld)={val, val};
+                val=w.(fld);
+            end
+            for k = 1:2
+                if ischar(val{k}) && startsWith(val{k},'@')
+                    val{k}=val{k}(2:end);
+                    if isprop(obj,val{k})
+                        w.(fld){k}=obj.(val{k});
+                    end
+                end
+            end
+        end
+        switch obj.wdwInfo.type
+        case {'COS','cos'}
+            obj.W{1}=cosWdw.new(w.PszRCT{1},w.rmpDm{1},w.dskDm{1},w.symInd{1});
+            obj.W{2}=cosWdw.new(w.PszRCT{2},w.rmpDm{2},w.dskDm{2},w.symInd{2});
+        otherwise
+            error(['Unhandled window type ' obj.winInfo.type]);
         end
     end
     function obj=cos_window(obj,WszRCT,dskDmRCT,rmpDmRCT)
@@ -444,7 +470,7 @@ methods
 %% PROPS
     function obj=update(obj)
         obj.init_window;
-        [obj.RMS,obj.DC]=obj.rms;
+        [obj.RMS,obj.DC]=obj.rms();
     end
     % RMS & DC
     function [RMS,DC]=rms(obj)
@@ -458,7 +484,7 @@ methods
         end
     end
     function [RMS,DC]=rms_helper(obj,img,W)
-        if obj.bContrastImg
+        if obj.bContrastImg || obj.bContrastFixed
             [RMS,DC]=Map.rmsDeviation(img,W,obj.bWindowed);
         else
             [RMS,DC]=rmsContrast(img,W,obj.bWindowed);
@@ -571,15 +597,23 @@ methods(Static=true)
         PcrdRC = bsxfun(@minus,PctrRC,floor(fliplr(PszXY)./2));
     end
 %% CONTRAST
-    function [IccdRMS,kRMS,DC]=fix_contrast(img,RMSfix,W,DCfix,nChnl)
-        DC=sum(img(:).*W(:))./sum(W(:));
-        Iweb     = (img-DC)./DC;
-        %kRMS     = Map.rmsDeviation(Iweb,W,0);
-        kRMS = sqrt(sum( (Iweb(:).^2).*W(:))./sum(W(:)));
+    function [IccdRMS,kRMS,DC]=fix_contrast(img,RMSfix,W,DCfix,nChnl,bContrastImg)
+
+        if bContrastImg
+            DC=1;
+            Iweb=img;
+        else
+            DC=sum(img(:).*W(:))./sum(W(:));
+            Iweb     = (img-DC)./DC;
+            %kRMS     = Map.rmsDeviation(Iweb,W,0);
+        end
 
         if ~exist('DCfix','var') || isempty(DCfix)
             DCfix   = DC;
         end
+
+        kRMS = sqrt(sum( (Iweb(:).^2).*W(:))./sum(W(:)));
+
         if ~exist('RMSfix','var') || isempty(RMSfix)
             RMSfix=kRMS;
         end

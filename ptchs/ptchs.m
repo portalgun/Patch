@@ -2,11 +2,8 @@ classdef ptchs < handle & ptchs_file & ptchs_load & ptchs_dsp & ptchs_plot & ptc
 % LOADER SELECTOR
 properties
     ptch
-
     name
 
-    fnames % XXX rm from sel table
-    bLoaded
 
     idx
     %I % XXX rm from sel key
@@ -18,11 +15,7 @@ properties
     %cmpInd
     %cmpNum
 
-
-    Xnames
-    Xunits
-    Xvals
-    Xinds
+    %Blk stuff
 
     hashes
 
@@ -45,6 +38,13 @@ properties
 end
 properties(Hidden=true)
     INDS
+    bLoaded
+    fnames % XXX rm from sel table
+
+    INDSB
+    bLoadedB
+    fnamesB
+
     MODE=-1
 end
 methods

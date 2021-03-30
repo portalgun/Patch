@@ -227,7 +227,11 @@ methods
 
         % GET OTHER EDGE
         [vals]=unique(obj.ptchs.idx.binVal);
-        val2=vals(find(vals==obj.info.binVal)+1);
+        inds=find(vals==obj.info.binVal)+1;
+        if any(inds > size(vals,1))
+            return
+        end
+        val2=vals(inds);
         obj.info.binVal(2)=val2;
     end
     function obj=get_ptch(obj,pidx)

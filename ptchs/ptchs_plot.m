@@ -36,32 +36,79 @@ methods
         axis image;
         set(gca,'YDir','normal');
     end
-    function montage_bins(obj,bins,nRows)
+    function montage_bins(obj,bins,n,bSave,dire)
         if (~exist('bins','var') || isempty(bins)) && obj.bBlk
             bins=unique(obj.blkBins(~isnan(obj.blkBins)));
         elseif (~exist('bins','var') || isempty(bins))
             bins=unique(obj.idx.B);
         end
-        if ~exist('nRows','var')
-            nRows=15;
+        if ~exist('n','var') || isempty(n)
+            n=100;
         end
-        clims=[];
-        nCol=numel(bins);
+        if ~exist('bSave','var') || isempty(bSave)
+            bSave=0;
+        end
+        if ~exist('dire','var') || isempty(dire)
+            dire='';
+        elseif ~endsWith(dire,filesep)
+            dire=[dire filesep];
+        end
+        N=n*3;
+        nCol=sqrt(N);
+        nRows=floor(N/nCol);
+        nCol=ceil(n/nRows);
+        clims=[0 1];
         %nCol=nan;
-        inds=zeros(nRows,nCol);
-        rng(1);
+        %inds=zeros(nRows,nCol);
+        %inds=ones(nRows,nCol).*0.4;
+        rng(2);
+        %iptsetpref('ImshowBorder','tight');
+        %iptsetpref('ImBorder','tight');
+        %iptsetpref('ImShowInitialMagnification','fit');
+        %iptsetpref('ImtoolInitialMagnification','fit');
+        %set(0, 'DefaultFigureRenderer', 'painters');
         for i = 1:length(bins)
+            %h=figure('name',['bin ' num2str(i)],'Toolbar','none','Menubar','none');
+            h=figure(1);
+            set(h, 'Renderer', 'painters');
+            set(h, 'RendererMode', 'manual');
+            set(h, 'GraphicsSmoothing', false);
             if obj.bBlk;
-                idx=find( obj.idx.B==bins(i) & ismember(obj.idx.P,obj.Blk.blk('P').ret()));
+                bInd=(obj.blkBins==bins(i));
+                idx=find(bInd);
             else
                 idx=find(obj.idx.B==bins(i));
             end
-            %inds(i,:)=idx(randperm(length(idx),nRows));
-            inds(:,i)=idx(randperm(length(idx),nRows));
+            %c=i+2*(i-1);
+            %inds(:,i)=idx(randperm(length(idx),nRows));
+
+            inds=idx(randperm(length(idx),n));
+            P=obj.load_patches_for_montage(inds);
+            %P=obj.load_patches_as_3Darray(inds);
+
+
+            %imshow(P);
+            %imshow(P);
+            %formatImage();
+
+            %caxis(clims);
+
+
+            %subPlot([1,nCol],1,i);
+            sz=size(P{1});
+            %axis image off;
+            montage(P,'DisplayRange',clims,'Size',[nRows nCol],'ThumbnailSize',sz);
+            %title(['bin ' num2str(bins(i)) ]);
+            Axis.match_res(2);
+            Axis.set_border_prcnt(0.05);
+            saveas(h,[dire 'bin' num2str(i) ],'epsc');
         end
-        inds=transpose(inds);
-        P=obj.load_patches_as_4Darray(inds);
-        montage(P,'DisplayRange',clims,'Size',[nRows nCol]);
+        %inds=transpose(inds);
+        %P=obj.load_patches_for_montage(inds,1,1);
+        %montage(P,'DisplayRange',clims,'Size',[nRows nCol],'ThumbnailSize',sz);
+        %formatImage();
+        %setRes(h);
+
     end
     function montage(obj,inds,nRows)
         if ~exist('nRows','var')
@@ -77,7 +124,7 @@ methods
         if ~exist('nRows','var') || isempty(nRows)
                 nRows = ceil(sqrt(size(P,4)));
         end
-        %montage(P,'DisplayRange','Size',[nRows NaN]);
+        montage(P.^.4,'DisplayRange','Size',[nRows NaN]);
     end
 end
 end

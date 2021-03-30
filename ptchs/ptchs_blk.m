@@ -16,11 +16,21 @@ methods
     function obj=apply_block_all(obj,alias)
         obj.load_blk(alias);
         obj.get_opts_from_blk();
+        obj.init_INDSB();
     end
     function obj=exp_init(obj,alias,mode,lvlInd,blocks)
         obj.load_blk(alias);
-        obj.select_blk(mode,lvlInd,block);
+        obj.select_block(mode,lvlInd,blocks);
         obj.get_opts_from_blk();
+        obj.init_INDSB();
+    end
+    function obj=init_INDSB(obj)
+        % XXX
+        n=obj.Blk.get_nStm();
+        obj.INDSB=cell(n,1);
+        obj.bLoadedB=false(n,1);
+        ind=obj.Blk.blk('P').ret();
+        obj.fnamesB=obj.fnames(ind);
     end
     function obj=get_opts_from_blk(obj)
         S=obj.Blk.ret_opts_struct();
@@ -30,16 +40,10 @@ methods
         Sn.focInfo=struct;
         Sn.subjInfo=struct;
         Sn.wdwInfo=struct;
-        inds=obj.Blk.blk('P').ret();
+        inds=[obj.Blk.blk('P').ret()];
         for i = 1:length(flds)
             fld=flds{i};
-            if size(S.(fld),1) > 2
-                sz=size(S.(fld));
-                val=nan([size(obj.fnames), sz(2:end)]);
-                val(inds,:,:,:,:)=S.(fld);
-            else
-                val=S.(fld);
-            end
+            val=S.(fld);
             switch fld
             case 'disparity'
                 Sn.trgtInfo.trgtDsp=val;
@@ -79,12 +83,13 @@ methods
         obj.Blk=Blk.load(alias);
         obj.bBlk=1;
     end
-    function obj=select_block(obj,BLK,mode,lvlInd,block)
+    function obj=select_block(obj,mode,lvlInd,blocks)
         obj.Blk=obj.Blk.select_block(mode,lvlInd,blocks);
     end
 %%  INDECESS
     function idx=get_interval_idx(obj,trl,intrvl)
-        ind=obj.Blk.blk('trl',trl,'intrvl',intvl,'P').ret();
+        ind=obj.Blk.blk('trl',trl,'intrvl',intrvl,'P').ret();
+
         if ind==obj.idx.P(ind);
             idx=ind;
         else
@@ -110,28 +115,169 @@ methods
             idx=find(obj.idx.P==ind);
         end
     end
-    function idx=get_trl_idx(obj,trl)
-        ind=obj.Blk.blk('trl',trl,'sel').ret();
-        idx=find(obj.P.idx==ind);
-        if ind==obj.idx.P(ind);
-            idx=ind;
+    function ind=get_stmInd(obj,trls,intrvls)
+        if ~exist('intrvls','var') || isempty(intrvls)
+            ind=obj.Blk.trial_to_stmInd(trls);
         else
-            idx=find(obj.idx.P==ind);
+            ind=obj.Blk.trial_intrvl_to_stmInd(trls,intrvls);
         end
     end
-%% LOAD
-    function out=load_interval_im(obj,trl,intrvl)
-        idx=get_intrvl_idx(trl,intrvl);
-        p=obj.get_ptch(idx);
-        out=p.im.img;
+    function ind=get_opts_ind(obj,trl,intrvl)
+        nTrial=obj.Blk.get_nTrial;
+        nIntrvl=obj.Blk.get_nIntrvl;
+        ind=sub2ind([nTrial nIntrvl],trl,intrvl);
     end
+    function optsInd=get_opts_ind_from_stmInd(obj,stmInd)
+        [trl,intrvl]=obj.Blk.stmInd_to_trial_interval(stmInd);
+        optsInd=obj.get_opts_ind(trl,intrvl);
+    end
+%% LOAD BY
     function obj=load_trials(obj,trls)
-        idx=obj.get_trl_idx(trls);
-        obj.load_patches(idx);
+        inds=obj.get_stmInd(trls);
+        obj.load_patches_blk(inds);
     end
     function obj=load_trial(obj,trl)
-        idx=find(obj.idx.trls==trl);
-        obj.load_patches(obj,idx);
+        if ~exist('trl','var')
+            trl=[];
+        end
+        idx=obj.get_stmInd(trl);
+        obj.load_patches(obj,idx,trl);
+    end
+%% LOAD
+    function out=get_interval_im(obj,trl,intrvl)
+        stmInd=obj.get_stmInd(trl,intrvl);
+        p=obj.get_patch_blk(stmInd);
+        out=p.im.img;
+    end
+    function p=get_patch_blk(obj,stmInd)
+        optsInd=obj.get_opts_ind_from_stmInd(stmInd);
+        dire=obj.get_dir();
+        if isempty(obj.INDSB{stmInd})
+            fname=[dire obj.fnamesB{stmInd}];
+            p=ptch.load(fname);
+        else
+            p=obj.INDSB{stmInd};
+        end
+        p=obj.apply_ptchOpts(p,optsInd);
+    end
+    function ptchs=get_loaded_blk(obj)
+        ptchs=obj.INDSB(obj.bLoadedB);
+    end
+    function obj=load_all_patches_blk(obj)
+        inds=1:length(obj.fnamesB);
+        obj.load_patches_blk(inds);
+    end
+    function obj=load_patches_blk(obj,inds)
+        for i = 1:length(inds)
+            obj.load_patch_blk(inds(i));
+        end
+    end
+    function obj=load_patch_blk(obj,ind)
+        p=obj.get_patch_blk(ind);
+
+        obj.INDSB{ind}=p;
+        obj.bLoadedB(ind)=true;
+    end
+%% CLEAR
+    function obj=clear_not_needed(obj,trls,intrvls)
+        loadedInd=find(obj.bLoadedB);
+        if isempty(loadedInd)
+            return
+        end
+        if ~exist('intrvls','var')
+            intrvls=[];
+        end
+        stmInd=obj.get_stmInd(trls,intrvls);
+        inds=loadedInd(~ismember(loadedInd,stmInd));
+
+        obj.clear_blk(inds);
+    end
+    function obj=clear_blk(obj,inds)
+        if ~exist('inds','var') || isempty(inds)
+            obj.clear_loaded_blk();
+        end
+        for i = 1:inds
+            ind=inds(i);
+            obj.INDSB{ind}=[];
+            obj.bLoadedB(ind)=false;
+        end
+    end
+    function obj=clear_loaded_blk(obj)
+        if ~any(obj.bLoadedB)
+            return
+        end
+        obj.INDSB(obj.bLoadedB)={[]};
+        obj.bLoadedB(obj.bLoadedB)=false;
+    end
+%% GET FROM BLK
+    function bMotion=get_bMotion(obj)
+        bMotion=obj.Blk.get_bMotion();
+    end
+    function val=get_stmXYdeg(obj,trl,intrvl)
+        if ~exist('trl','var')
+            trl=[];
+        end
+        if ~exist('intrvl','var')
+            intrvl=[];
+        end
+        val=obj.get_interval_opt(trl,intrvl,'winInfo','WHdeg');
+    end
+    function nStm=get_nStm(obj)
+        nStm=obj.Blk.get_nStm();
+    end
+    function nTrl=get_nTrial(obj)
+        nTrl=obj.Blk.get_nTrial();
+    end
+    function cmpX=get_cmpX(obj,trl,cmpNum)
+        if ~exist('trl','var')
+            trl=[];
+        end
+        if ~exist('cmpNum','var')
+            cmpNum=[];
+        end
+        cmpX=obj.Blk.get_cmpX(trl,cmpNum);
+    end
+    function stdX=get_stdX(obj,trl)
+        if ~exist('trl','var')
+            trl=[];
+        end
+        stdX=obj.Blk.get_stdX(trl);
+    end
+    function intrvl=get_cmpIntrvl(obj,trl,cmpNum)
+        if ~exist('trl','var')
+            trl=[];
+        end
+        if ~exist('cmpNum','var')
+            cmpNum=[];
+        end
+        intrvl=obj.Blk.get_cmpIntrvl(trl,cmpNum);
+    end
+%% GET OPTS
+    function val=get_duration(obj,trl,intrvl)
+        if ~exist('trl','var')
+            trl=[];
+        end
+        if ~exist('intrvl','var')
+            intrvl=[];
+        end
+        val=obj.get_interval_opt(trl,intrvl,[],'duration');
+    end
+    function val=get_interval_opt(obj,trl,intrvl,fld,opt)
+        if ~isempty(fld) && ~endsWith(fld,'Info')
+            fld=[fld 'Info'];
+        end
+        if isempty(fld)
+            vals=obj.ptchOpts.(opt);
+        else
+            vals=obj.ptchOpts.(fld).(opt);
+        end
+        if size(vals,1)==1
+            val=vals;
+            return
+        else
+            ind=obj.get_opts_ind(trl,intrvl);
+            val=vals(ind,:,:,:,:);
+        end
     end
 
 end

@@ -2,7 +2,7 @@ classdef ptchs_file < handle
 methods
 %% 1
     function obj=save(obj)
-        obj.clear_loaded_patches();
+        obj.clear_loaded();
         fname=obj.get_fname();
         P=obj;
         save(fname,'P');
@@ -63,14 +63,23 @@ methods
 end
 methods(Static=true)
 % TRN/TST
+    function fname=get_dmp_fname_p(database,name)
+        dire=ptchs.get_dmp_dir_p(database,name);
+        fname=[dire '_P_'];
+    end
     function dire=get_dir_p(database,name)
-        database=[database 'exp'];
+        database=[database 'ptch'];
         rootDBdir=imapCommon.get_rootDBdir(database);
         dire=[rootDBdir name filesep];
     end
 %% DMP
     function dire=get_dmp_dir_p(database,hash)
         dire=ptch.get_directory_p(database,hash);
+    end
+    function P=load(alias)
+        hashes=imapCommon.alias2hashes(alias);
+        fname=ptchs.get_dmp_fname_p(hashes.database,hashes.pch);
+        load(fname);
     end
 end
 end
