@@ -20,6 +20,9 @@ properties
     genOpts
 
 end
+properties(Constant,Hidden)
+    %PROPS={'database','hashes','fname','I','K','B','S','P','LorR',
+end
 methods
     function obj=srcInfo(database,hashes,I,K,PctrRC,B,S,P,binVal,Val,db,genOpts,fname)
         if isstruct(database)
@@ -34,7 +37,7 @@ methods
             obj.B=B;
         end
         if exist('S','var') && ~isempty(S)
-            obj.S=S;    
+            obj.S=S;
         end
         if exist('P','var') && ~isempty(P)
             obj.P=P;
@@ -69,10 +72,11 @@ methods
     function obj=construct_from_struct(obj,S)
         flds=fieldnames(S);
         for i = 1:length(flds)
-            fld=flds{i};
-            if isprop(obj,fld)
-                obj.(fld)=S.(fld);
+            if strcmp(flds{i},'val');
+                continue
             end
+            fld=flds{i};
+            obj.(fld)=S.(fld);
         end
     end
     function obj=get_LorR(obj)
@@ -100,10 +104,10 @@ methods
         obj.db=[];
     end
     function obj=get_fname(obj)
-        obj.fname=imapCommon.get_ptch_name_f(obj.database, obj.name, obj.k, obj.I, obj.P);
+        obj.fname=ImapCommon.get_ptch_name_f(obj.database, obj.name, obj.k, obj.I, obj.S);
     end
     function S=srcInfo_to_struct(obj)
-        S=obj2structPublic(obj);
+        S=Obj.PubStruct(obj);
     end
 
     function obj=get_genOpts(obj)

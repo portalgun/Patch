@@ -1,26 +1,31 @@
-classdef ptch_dsp < handle
+classdef ptch_dsp < handle & ptch_link
 methods
     %% INIT 2
-    function obj=init_disp(obj,trgtInfo,focInfo,Disp,winInfo,subjInfo)
+    function init_disp(obj,trgtInfo,focInfo,Disp,winInfo,subjInfo)
         % NOTE EVERYTHING IN BASE UNITS (DEGREES)
         % from ptchs, called on by apply_ptchOpts
         if exist('trgtInfo','var') && ~isempty(trgtInfo)
             obj.trgtInfo=trgtInfo;
         end
 
-        if exist('Disp','var') && isa(Disp,'DISPLAY')
-            obj.Disp=Disp;
-            obj.DispInfo=DISPLAY.get_name_from_display(obj.Disp);
-        elseif  exist('Disp','var') && ischar(Disp)
-            obj.DispInfo=Disp;
-            obj.Disp=DISPLAY(Disp);
-        elseif isempty(obj.Disp)
-            obj.Disp=DISPLAY.get_display_from_hostname();
-            obj.DispInfo=DISPLAY.get_name_from_display(obj.Disp);
+        if nargin >= 4 && ~isempty(Disp)
+            if isa(Disp,'VDisp')
+                obj.Disp=Disp;
+                obj.DispInfo=VDisp.get_name_from_display(obj.Disp);
+            elseif schar(Disp)
+                obj.DispInfo=Disp;
+                obj.Disp=VDisp(Disp);
+            end
+        elseif ~isempty(obj.DispInfo) && isempty(obj.Disp)
+            obj.Disp=VDisp(obj.DispInfo);
+        elseif isempty(obj.DispInfo) && isempty(obj.Disp)
+            obj.Disp=VDisp();
+            obj.DispInfo=VDisp.get_name_from_display(obj.Disp);
         end
+
         if exist('winInfo','var') && ~isempty(winInfo)
             obj.winInfo=winInfo;
-        elseif isempty(obj.winInfo)
+        elseif isempty(obj.winInfo) && (~exist('winInfo','var') || isempty(winInfo))
             obj.winInfo.posXYZm=[0 0 0];
             obj.winInfo.WHm=obj.Disp.scrnXYmm./1000;
         end
@@ -34,68 +39,101 @@ methods
         if exist('subjInfo','var') && ~isempty(subjInfo)
             obj.subjInfo=subjInfo;
         elseif isempty(obj.subjInfo)
-            obj.subjInfo.IPDm=0.065;
-            obj.subjInfo.LExyz=[-0.065/2 0 0];
-            obj.subjInfo.RExyz=[ 0.065/2 0 0];
+            obj.subjInfo=SubjInfo.get_default;
         end
 
-        if ~isempty(obj.Disp) && ~isempty(obj.trgtInfo) && ~isempty(obj.focInfo)
+        if ~isempty(obj.trgtInfo)
             obj.bDSP=1;
-            obj.update_dsp();
+            %obj.update_dsp();
         end
     end
-    function obj=update_dsp(obj)
+    function obj=update_dsp(obj,bXYZ,W)
         % NOTE EVERYTHING IN BASE UNITS (DEGREES)
-
-        obj.get_win();
-        obj.get_trgt_CPs();
-
-        yesmaps={'CPs','xyz','vrg','vrs'};
-        if any(ismember(obj.mapNames,yesmaps));
-            obj.get_map_CPs_bi();
+        if nargin < 2 || isempty(bXYZ)
+            bXYZ=true;
         end
-        if ismember('xyz',obj.mapNames)
-            obj.get_map_xyz_bi();
+        if nargin < 3
+            W=[];
         end
-        if ismember('vrg',obj.mapNames)
-            obj.get_map_vrg_bi();
-        end
-        obj.crop_mapsbuff_bi();
 
-        % IM
+        % CENTRAL GEOMETRY
+        obj.get_win(); % NOTE BOTTLENECK 1 60&
+                       % (win3D, then PointDispWin3D creation)
+        obj.win_to_patch_CPs();
+
+        if bXYZ
+            obj.select_xyz(); % 15%
+        end
+        obj.select_pht();
         obj.get_default_masks();
 
-        obj.reapply_map_bi();
-        obj.im.init2();
+        % IM
+        obj.reapply_map();
+        if ~isempty(obj.im)
+            obj.im.init2([],W); % 15%
+        end
+
         obj.bDSP=1;
     end
+    function obj=select_xyz(obj)
+        % TRANSFORM
+        obj.bPhtTransform=obj.bPhtTransform || strcmp(obj.primaryPht,'t');
+        obj.bXYZTransform=obj.bXYZTransform || strcmp(obj.primaryXYZ,'t') || obj.bPhtTransform;
+
+        if obj.bXYZTransform
+            obj.get_xyz_transform();
+            obj.get_transform_CPs(k); % xyz -> CP
+        end
+
+        % DISPLAY
+        if obj.bXYZDisplay || strcmp(obj.primaryXYZ,'d')
+            obj.get_xyz_display(obj.srcInfo.K);
+        end
+
+        switch obj.primaryXYZ
+        case 'd'
+            obj.maps.xyz=obj.maps.xyzD;
+        case 't'
+            obj.maps.xyz=obj.maps.xyzT;
+        case 's'
+            obj.maps.xyz=obj.maps.xyzS;
+        end
+
+        % VRG MAP
+        if ismember_cell('vrg',obj.mapNames)
+            obj.get_map_vrg();
+        end
+    end
+    function obj=select_pht(obj)
+        % TRANSFORM
+        if obj.bPhtTransform
+            obj.get_transform_maps(k); % CP -> pht
+        end
+        % DISPLAY
+        if obj.bPhtSource
+            obj.crop_buffs(obj.cropRule,obj.cropInterpType,false); % NOTE considers bTransform
+        end
+    end
+    function obj=win_to_patch_CPs(obj)
+        obj.PctrCPs=obj.win.get_patch_CPs(obj.PszRC,obj.PszRCbuff);
+    end
 %% GET
+
     function obj=get_win(obj)
-        trgtInfo=obj.get_trgt_base();
-        focInfo=obj.get_foc_base();
-        winInfo=obj.get_win_base();
+        %trgtInfo=obj.get_trgt_base();
 
-        obj.win=DspDispWin(    ....
-                               obj.trgtInfo.trgtDsp,...
-                               obj.Disp,...
-                               winInfo,...
-                               obj.trgtInfo.dispORwin,...
-                               trgtInfo,...
-                               obj.focInfo.dispORwin,...
-                               focInfo);
-    end
-    function trgtInfo=get_trgt_base(obj)
-        trgtInfo=rmfield(obj.trgtInfo,'trgtDsp');
-        trgtInfo=rmfield(trgtInfo,'dispORwin');
-    end
-    function focInfo=get_foc_base(obj)
-        focInfo=rmfield(obj.focInfo,'dispORwin');
-    end
-    function winInfo=get_win_base(obj)
-        winInfo=obj.winInfo;
-        winInfo.subjInfo=obj.subjInfo;
-    end
+        %winInfo=obj.winInfo;
+        %if ~isa(winInfo,'Win3D')
+        %    winInfo.subjInfo=obj.subjInfo;
+        %end
 
+        % BOTTLENECK
+        obj.win=DspDispWin( ...
+                               obj.Disp, ...
+                               obj.winInfo,...
+                               obj.trgtInfo,...
+                               obj.focInfo);
+    end
 %% SET INFO
     function obj=set_trgtInfo(obj,trgtInfo)
         obj.init_disp(trgtInfo);
@@ -197,6 +235,36 @@ methods
     function obj=set_foc_vrs(pos,dispORwin)
         if ~exist('dispORwin','var'); dispORwin=[]; end
         obj.set_pos('foc','vrs',pos,dispORwin);
+    end
+
+    function out=getCtrZDiff(obj,k)
+        if ~exist('k','var') || isempty(k)
+            k=obj.srcInfo.K;
+        end
+        t=obj.getCtrTrgtXYZ;
+        c=obj.getCtrXYZ(k);
+        out=c(3)-t(3);
+    end
+    function out=getCtrXYZArcmin(obj,k)
+        if ~exist('k','var') || isempty(k)
+            k=obj.srcInfo.K;
+        end
+        xyz=obj.getCtrXYZ(k);
+        out=obj.win.xyzToDspArcmin(xyz);
+    end
+    function out=getCtrTrgtXYZ(obj)
+        out=obj.win.trgt.pos.posXYZm;
+    end
+    function out=getCtrXYZ(obj,k,type)
+        if ~exist('k','var') || isempty(k)
+            k=obj.srcInfo.K;
+        end
+        if ~exist('type','var') || isempty(type)
+            type='maps';
+        end
+        xyz=obj.(type).xyz{k};
+        ctr=floor(size(xyz(:,:,1))/2);
+        out=transpose(squeeze(xyz(ctr(1),ctr(2),:)));
     end
     %% HELPERS
 %%  UDPATE DISP

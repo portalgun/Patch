@@ -1,4 +1,4 @@
-classdef ptch_src < handle
+classdef ptch_src < handle & ptch_link
 %% SRC
 methods
     function obj=get_map_srcs(obj)
@@ -22,6 +22,9 @@ methods
     function obj=get_src(obj,hash,type)
         if ~exist('type','var') || isempty(type)
             type='img';
+        end
+        if (nargin < 2 || isempty(hash))  && ~strcmp(type,'img')
+            hash=obj.srcInfo.hashes.(type);
         end
 
         obj.src.(hash)=cell(1,2);
@@ -56,28 +59,27 @@ methods
     end
 
 %% CROP
-    function obj=crop_srcs_bi(obj,type,interpType)
-        if ~exist('interpType','var')
-            interpType=[];
+    function obj=crop_srcs(obj,type,interpType,bXYZ,I)
+        if nargin < 5
+            I=1:(min([obj.bStereo+1,2]));
         end
-        for i = 1:(min([obj.bStereo+1,2]))
-            obj.crop_srcs(i,type,interpType);
-            if obj.badflag; return; end
+        if nargin < 4 || isempty(bXYZ)
+            bXYZ=true;
         end
-    end
-    function obj=crop_srcs(obj,i,type,interpType)
         nomaps={'CPs','vrg','vrs'};
-        if ~exist('interpType','var')
+        if nargin < 3
             interpType=[];
         end
         flds=fieldnames(obj.src);
         for m=1:length(flds)
             fld=flds{m};
 
-            if ismember(fld,nomaps) || ~ismember(fld,obj.([type 'Names']))
+            if ismember(fld,nomaps) || ~ismember(fld,obj.([type 'Names'])) || (~bXYZ && strcmp(fld,'xyz'))
                 continue
             else
-                obj.crop_src(i,fld,type,interpType);
+                for k=I
+                    obj.crop_src(k,fld,type,interpType);
+                end
             end
             if obj.badflag; return; end
         end
@@ -92,7 +94,7 @@ methods
             k=2;
         end
 
-        name=[type 'sbuff'];
+        name=[type 'sBuff'];
         im=obj.src.(fld){i};
 
         % PCTRRC
@@ -101,7 +103,13 @@ methods
             PctrRC=PctrRC{i};
         end
 
-        % GET K
+        if strcmp(fld,'xyz')
+            fld='xyzS';
+            if ~ismember('xyzS',obj.mapNames)
+                obj.mapNames{end+1}='xyzS';
+                obj.mapNames(ismember(obj.mapNames,'xyz'))=[];
+            end
+        end
 
         if iscell(im)
             for j= 1:length(im)
@@ -111,24 +119,140 @@ methods
                 else
                     pctrRC=PctrRC;
                 end
-                try
+                %try
                     obj.(name).(fld){i}{j}=Map.crop(im,pctrRC,obj.PszRCbuff,interpType);
-                catch
-                    obj.badflag=1;
+                %catch
+                    %obj.badflag=1;
                     %display(['warning: bad ptch ' num2str(i) ':' num2str(j)]);
-                    return
-                end
+                    %return
+                %end
             end
         else
-            try
+
+            if ~isfield(obj.(name),fld)
+                obj.(name).(fld)=cell(1,2);
+            end
+
+            %% PctrRC
+            %% obj.PszRCbuff
+            %% i
+            %% fld
+            %% disp(newline)
+
+            %try
                 obj.(name).(fld){i}=Map.crop_f(im,PctrRC,obj.PszRCbuff,interpType);
-            catch
-                obj.badflag=1;
+            %catch ME
+            %    obj.badflag=1;
                 %display(['warning: bad ptch ' num2str(i) ]);
-                return
+            %    disp(ME)
+            %    return
+            %end
+
+        end
+
+    end
+%%- RAW
+    function obj=get_raw_CPs_bi(obj)
+        for k=1:2
+            [obj,exitflag]=obj.get_raw_CPs(k);
+            if exitflag==1
+                break
+            end
+        end
+    end
+    function [obj,exitflag]=get_raw_CPs(obj,k)
+        % XXX BAD
+        dk
+        if k==1; nk=2; elseif k==2 nk=1; end;
+        ActrRC=obj.srcInfo.PctrRC{k};
+        if isempty(obj.srcInfo.db)
+            obj.srcInfo.get_db();
+        end
+
+        if isempty(obj.PszRCbuff) && ~isempty(obj.PszRC)
+            PszRC=obj.PszRC;
+        elseif ~isempty(obj.PszRCbuff)
+            PszRC=obj.PszRCbuff;
+        end
+
+
+        [AitpRC,BitpRC, BctrRC]=obj.src.XYZ.get_CPs_patch(k,ActrRC,PszRC);
+
+        if isempty(obj.srcInfo.PctrRC{nk})
+            obj.srcInfo.PctrRC{nk}=BctrRC;
+            exitflag=1;
+        else
+            exitflag=0;
+        end
+
+        obj.src.CPs=cell(2,1);
+        obj.src.CPs{k}=cell(1,2);
+        obj.src.CPs{k}{k}=AitpRC{1};
+        obj.src.CPs{k}{nk}=AitpRC{2};
+
+        obj.src.CPs{nk}{nk}=BitpRC{1};
+        obj.src.CPs{nk}{k}=BitpRC{2};
+    end
+%% VRG
+    function obj=get_raw_vrg_bi(obj)
+        for k=1:2
+            obj.get_raw_vrg(k);
+        end
+    end
+    function obj=get_raw_vrg(obj,i)
+        xyz=obj.src.xyz{i};
+        LExyz=obj.srcInfo.db.LExyz;
+        RExyz=obj.srcInfo.db.RExyz;
+
+        [vrgDeg,vrsDeg]=XYZ.get_vrg_vrs_map(xyz,LExyz,RExyz);
+
+        obj.src.vrg{i}=vrgDeg;
+        obj.src.vrs{i}=vrsDeg;
+    end
+%% DISPARITY
+    function obj=add_raw_disparity_bi(obj,vrgDeg)
+        obj.dCPs=cell(2,1);
+        for i = 1:2
+            obj.dCPs{i}=obj.add_raw_disparity(vrgDeg,i);
+        end
+    end
+    function dspCps=add_raw_dispary(obj,vrgDeg,i)
+        CPs=obj.src.CPs;
+        db=obj.srcInfo.db;
+
+        dspCPs=cell(1,2);
+        [dspCPs{i},dspCP{i},~]=XYZ.add_disparity(CPs{1},CPs{2},vrgDeg{i}*60,db.IppXm{1},db.IppYm{1},db.IppXm{2},db.IppYm{2},db.IppZm,db.IPDm);
+
+    end
+end
+methods(Static)
+    function src=getSrc(database,imgNames,I, db, AitpRC0)
+        src=struct();
+
+        if ~exist('db','var') || isempty(db)
+            db=dbInfo(database);
+        end
+
+        for i = 1:length(imgNames)
+            name=imgNames{i};
+            if strcmp(name,'xyz')
+                continue
+            end
+            src.(name)=cell(1,2);
+            for k = 1:2
+                src.(name){k}=dbImg.getImg(database,'img',name,I,k);
             end
         end
 
+        % XYZ
+        src.xyz=dbImg.getImg(database,'img','xyz',I,'B',1,db);
+        % NOTE DO NOT USE XYZ CP lookup FOR PATCH CROPPING!
+        src.CPs=CPs.loadLookup(database,I,0,0);
+        src.AitpRC0=AitpRC0;
+    end
+    function [Opts]=get_src_opts(defName)
+        [~,modOpts]=ImapOpts.get(defName,'tbl');
+        Opts=modOpts.tbl;
     end
 end
 end

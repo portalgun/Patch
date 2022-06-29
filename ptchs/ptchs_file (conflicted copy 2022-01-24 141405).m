@@ -14,8 +14,8 @@ methods
 
         save(fname,'P');
     end
-    function clear_loaded(obj)
-        % XXX EXISTS ELSEWEHRE UNDER DIF NAME?
+    function obj=reset_ptchOpts(obj)
+        obj.ptchOpts=obj.oPtchOpts;
     end
     function obj=clear_ptchOpts(obj)
         obj.ptchOpts=struct();
@@ -25,24 +25,22 @@ methods
         dire=obj.get_dir;
         fname=[dire '_P_'];
     end
-    function dire=get_dir(obj,bLocal)
-        if nargin < 2 || isempty(bLocal)
-            bLocal=obj.bLocal;
-        end
-        if isempty(bLocal)
-            bLocal=false;
-        end
-        dire=ptch.get_directory_p(obj.hashes.database, obj.hashes.tbl, bLocal);
+    function dire=get_dir(obj)
+        dire=ptch.get_directory_p(obj.hashes.database, obj.hashes.tbl);
     end
     function obj=load_edges(obj)
 
         if ~isempty(obj.hashes.bin)
             try
+                % XXX
+            catch
                 obj.edges.bin=ImapCommon.get_edges_bin(obj.hashes);
             end
         end
         if ~isempty(obj.hashes.smp)
             try
+                % XXX
+            catch
                 obj.edges.smp=ImapCommon.get_edges_smp(obj.hashes);
             end
         end
@@ -50,31 +48,29 @@ methods
     end
     function obj=load_counts(obj)
         if ~isempty(obj.hashes.bin)
-            try
-                obj.counts.bin=ImapBin.loadCounts(obj.hashes.database,obj.hashes.bin);
-            end
+            obj.counts.bin=ImapBin.loadCounts(obj.hashes.database,obj.hashes.bin);
         end
         if ~isempty(obj.hashes.smp)
-            try
-                obj.counts.smp=ImapSmp.loadCounts(obj.hashes.database,obj.hashes.smp);
-            end
+            obj.counts.smp=ImapSmp.loadCounts(obj.hashes.database,obj.hashes.smp);
         end
     end
-    function get_genOpts(obj)
+    function obj=get_genOpts(obj)
         try
-            obj.genOpts=ImapGen.load_genOpts(obj.hashes.database, obj.hashes.gen);
+            fname=[obj.dire '_genOpts_.mat'];
+            load(fname);
         catch
-            obj.genOpts=struct();
+            genOpts=ImapGen.load_genOpts(obj.hashes.database, obj.hashes.gen);
         end
+        obj.ptchOpts.genOpts=genOpts;
     end
 end
 methods(Static=true)
-    function P=loadBlk(ptchAlias,blkORblkAlias,vDisp,moude,lvlInd,blocks)
+    function P=loadBlk(ptchAlias,blkAlias,vDisp,mode,lvlInd,blocks)
         % TODO ptchAlias can be filename
         % TODO blkaslias can be file
         % TODO vDisp can be a vdisp
-        if ~exist('moude','var') || isempty(moude)
-            moude=1;
+        if ~exist('mode','var')
+            mode=1;
         end
         if ~exist('lvlInd','var') || isempty(lvlInd)
             lvlInd=1;
@@ -83,22 +79,16 @@ methods(Static=true)
             blocks=1;
         end
 
-        if isa(blkORblkAlias,'Blk')
-            B=blkORblkAlias;
-        else
-            B=Blk.load(blkORblkAlias);
-        end
+        B=Blk.load(blkAlias);
         if ischar(lvlInd) && strcmp(lvlInd,'all')
-            lvlInd=B.unique('lvlInd');
+            lvlInd=B.blk('lvlInd').unique();
         end
         if ischar(blocks) && strcmp(blocks,'all')
-            blocks=B.unique('blk');
+            blocks=B.blk('blk').unique();
         end
         P=ptchs.load(ptchAlias);
-        if ~isempty(vDisp)
-            P.apply_display(vDisp);
-        end
-        P.exp_init(B,moude,lvlInd,blocks);
+        P.apply_display(vDisp);
+        P.exp_init(blkAlias,mode,lvlInd,blocks);
         P.get_genOpts();
     end
     function fname=get_fname_p(database,name)
@@ -135,13 +125,11 @@ methods(Static=true)
 
         P.init_parts();
         P.getFlags();
-        P.get_genOpts();
 
-        P.load_edges();
-        P.load_counts();
-        if ~isempty(P.addAlias)
-            P.addHashes=ImapCommon.alias2hashes(P.addAlias);
-        end
+        % XXX
+        %P.get_genOpts();
+        %P.load_edges();
+        %P.load_counts();
     end
 end
 end

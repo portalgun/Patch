@@ -1,152 +1,234 @@
-classdef ptch_plot < handle
+classdef ptch_plot < handle & ptch_link
 methods
-    function [sp]=plot(obj,sp,clim,pos,buffORptch,bDC)
-        if ~exist('clim','var')
-            clim=[];
+    function sp=plot(obj,varargin)
+        Opts=obj.parsePlotArgs(varargin{:});
+        %tiledlayout(2,2, 'Padding', 'none', 'TileSpacing', 'compact');
+
+        % PLOT IM
+        r=0;
+        if Opts.bImg
+            r=r+1;
+            obj.faux_gamma_correct();
+            obj.plot_fun('IM',obj.im.img,Opts,false,r);
+            obj.faux_gamma_uncorrect();
         end
-        if ~exist('bDC','var') || isempty(bDC)
-            bDC=0;
+        if Opts.bPht
+            r=r+1;
+            im=cellfun(@(x) x.^0.4,obj.(Opts.fld).pht,'UniformOutput',false);
+            obj.plot_fun('PHT',im,Opts,true,r);
         end
-        bBP=(exist('buffORptch','var') && ~isempty(buffORptch));
-        if ~bBP && obj.bDSP
-            buffORptch='ptch';
-        elseif ~bBP
-            buffORptch='buff';
+        if Opts.bXYZ
+            r=r+1;
+            if strcmp(Opts.buffORptch,'buff')
+                f=['xyz' Str.Alph.upper(obj.primaryXYZ)];
+            else
+                f='xyz';
+            end
+
+            im=cellfun(@(x) x(:,:,3),obj.(Opts.fld).(f),'UniformOutput',false);
+            obj.plot_fun('XYZ',im,Opts,true,r);
         end
-        if strcmp(buffORptch,'ptch') && ~isempty(obj.maps);
-            bPtch=1;
+        if Opts.bAnaglyph
+            r=r+1;
+            name='ANAG';
+            obj.select(Opts,r,1);
+            obj.plotXYZAnaglyph();
+            if ~Opts.bSP obj.format_fun(); end
+            if ~Opts.bSP; ylabel(name); end
+        end
+        if Opts.bSP
+            Opts.sp.finalize(obj.bDSP);
+        end
+        if nargout > 0
+            sp=Opts.sp;
+        end
+    end
+    function plotAllXYZ(obj,k)
+        if ~exist('k','var') || isempty(k)
+            k=obj.srcInfo.K;
+        end
+        if k==1
+            nk=2;
         else
-            bPtch=0;
+            nk=1;
+        end
+        n=1+obj.bDSP;
+        m=1+obj.bDSP*2;
+
+        c=1;
+        subPlot([n m],1,c);
+        obj.plotXYZBuff3D(k);
+        title('LRSI');
+        cl=ylim;
+
+        subPlot([n m],2,c);
+        obj.plotXYZBuff(k);
+        colorbar;
+        caxis(cl);
+
+        c=2;
+        if ~obj.bDSP
+            return
+        end
+        subPlot([n m],1,c);
+        obj.plotXYZMap3D(k);
+        title('Display');
+        cl=ylim;
+
+        subPlot([n m],2,c);
+        obj.plotXYZMap(k);
+        colorbar;
+        caxis(cl);
+
+        c=3;
+        subPlot([n,m],1,3);
+        obj.plotXYZBino();
+
+
+    end
+    function xyz=getAnaglyph(obj)
+        phtL=real(obj.im.img{1});
+        phtR=real(obj.im.img{2});
+        xyz=stereoAnaglyph(phtL,phtR);
+    end
+    function plotXYZAnaglyph(obj)
+        %phtL=obj.maps.pht{1};
+        %phtR=obj.maps.pht{2};
+        %imagesc(phtR)
+        %dk
+        xyz=obj.getAnaglyph();
+        image(xyz);
+        imshow(xyz);
+        %image(xyz,'CDataMapping','scaled')
+        %Fig.formatIm();
+
+    end
+    function plotXYZBuff3D(obj,k)
+        if ~exist('k','var') || isempty(k)
+            k=obj.srcInfo.K;
+        end
+        name=['xyz' Str.Alph.upper(obj.primaryXYZ)];
+        xyz=obj.mapsBuff.(name){k};
+        pht=obj.mapsBuff.pht{k};
+        LorR=obj.srcInfo.LorR;
+        ptch.plotXYZ3D_fun(xyz,pht,LorR,false,obj.PszRC);
+    end
+    function plotXYZBuff(obj,k)
+        if ~exist('k','var') || isempty(k)
+            k=obj.srcInfo.K;
+        end
+        name=['xyz' Str.Alph.upper(obj.primaryXYZ)];
+        xyz=obj.mapsBuff.(name){k};
+        z=xyz(:,:,3);
+        imagesc(z);
+        hold on
+
+        ctr=size(z)/2;
+        crpCtr=floor(ctr + 1);
+        U=crpCtr(1)+obj.PszRC(1)/2;
+        B=crpCtr(1)-obj.PszRC(1)/2;
+        L=crpCtr(2)+obj.PszRC(2)/2;
+        R=crpCtr(2)-obj.PszRC(2)/2;
+
+        UR=[U,R];
+        UL=[U,L];
+        LR=[B,R];
+        LL=[B,L];
+        Rec=[UR; UL; LL; LR; UR];
+
+        Fig.formatIm();
+        Fig.format();
+        hold off
+    end
+    function plotXYZMap(obj,k)
+        if ~exist('k','var') || isempty(k)
+            k=obj.srcInfo.K;
+        end
+        m=obj.maps.xyz{k}(:,:,3);
+        imagesc(m);
+        Fig.formatIm();
+        Fig.format();
+    end
+    function plotXYZMap3D(obj,k)
+        if ~exist('k','var') || isempty(k)
+            k=obj.srcInfo.K;
+        end
+        xyz=obj.maps.xyz{k};
+        pht=obj.maps.pht{k};
+        LorR=obj.srcInfo.LorR;
+        ptch.plotXYZ3D_fun(xyz,pht,LorR,true,obj.PszRC);
+    end
+
+end
+methods(Access=protected)
+    function Opts=parsePlotArgs(obj,varargin)
+        P=ptch.getPlotP();
+        Opts=Args.parse(struct(),P,varargin{:});
+        if isempty(Opts.buffORptch) && obj.bDSP
+            Opts.buffORptch='ptch';
+        elseif isempty(Opts.buffORptch)
+            Opts.buffORptch='buff';
+        end
+        if strcmp(Opts.buffORptch,'ptch') && ~isempty(obj.maps);
+            Opts.bPtch=1;
+        else
+            Opts.bPtch=0;
+        end
+        if strcmp(Opts.buffORptch,'ptch') && ~obj.bDSP
+            Opts.buffORptch='buff';
+        end
+        if strcmp(Opts.buffORptch,'ptch')
+            Opts.fld='maps';
+        else
+            Opts.fld='mapsBuff';
+        end
+        if obj.bDSP
+            Opts.PctrRC=obj.PctrCPs;
+            Opts.PszRC=obj.PszRC;
+        else
+            Opts.PctrRC={obj.PszRCbuff/2; obj.PszRCbuff/2};
+            Opts.PszRC=obj.PszRCbuff;
+        end
+        if isempty(Opts.bAnaglyph)
+            Opts.bAnaglyph=false;
+        end
+        if isempty(Opts.bImg)
+            Opts.bImg=~isempty(obj.im);
         end
 
-        % SP
-        bSP=exist('sp','var') && ~isempty(sp);
-        if bSP
+        Opts.R=Opts.bImg+Opts.bXYZ+Opts.bPht+Opts.bAnaglyph;
+        Opts.C=1+2*min([obj.bStereo,1]);
+        RC=[Opts.R Opts.C];
+
+        %% SP
+        if ~Opts.bSP
+            return
+        end
+        if ~isempty(Opts.sp);
             ysz=get(gca,'YLim');
             xsz=get(gca,'XLim');
             lastSz=[ysz(2)-ysz(1) xsz(2)-xsz(1)];
-            if (bPtch && ~isequal(lastSz,obj.PszRC)) || (~bPtch && ~isequal(lastSz,obj.PszRCbuff))
-                bNew=1;
-            else
-                bNew=0;
-            end
+            Opts.bNew=(Opts.bPtch && ~isequal(lastSz,obj.PszRC)) || (~Opts.bPtch && ~isequal(lastSz,obj.PszRCbuff));
         else
-            bNew=0;
+            Opts.sp=obj.get_sp(RC, Opts.clim,Opts.bPtch);
+            Opts.bNew=false;
+        end
+        if Opts.bNew && isempty(Opts.pos)
+            Opts.pos=get(gcf,'Position');
+        end
+        if ~isempty(Opts.pos)
+            Opts.sp.position=Opts.pos;
         end
 
-        if  ~bSP
-            sp=obj.get_sp(clim,bPtch,bDC);
-        elseif bNew
-            sp=obj.get_sp(clim,bPtch);
-            if ~exist('pos','var') || isempty(pos)
-                pos=get(gcf,'Position');
-            end
-            sp.position=pos;
-        elseif ~isempty(clim) && sp.nRows==2
-            sp=obj.get_sp(clim,bPtch);
-            %pos=get(gcf,'Position');
-            %sp.position=pos;
-        elseif exist('pos','var') && ~isempty(pos)
-            sp.position=pos;
-        else
-            pos=get(gcf,'Position');
-            sp.position=pos;
-        end
-        R=sp.nRows;
-        C=sp.nCols;
 
-        % NAMES
-        names=cell(R,1);
-        names{1}='pht';
-        if ismember('xyz',obj.mapNames)
-            names{2}='xyz';
-        end
-        if R==3
-            names{end+1}='xyz';
-        end
-
-        % FLD
-        if bPtch
-            PctrRC=obj.PctrCPs;
-            fld='maps';
-        elseif ~obj.bDSP
-            PctrRC={obj.PszRCbuff/2; obj.PszRCbuff/2};
-            fld='mapsbuff';
-        elseif obj.bDSP
-            PctrRC=obj.PctrCPs;
-            fld='mapsbuff';
-        end
-
-        bIm=~isempty(obj.im);
-        s=1+bIm;
-        e=R+bIm;
-
-        % PLOT IM
-        hold off
-        if bIm
-            obj.faux_gamma_correct();
-            sp.select(1,1);
-            plot_fun( obj.im.img{1},fld,PctrRC{1},obj.PszRC,obj.bDSP,1);
-
-            sp.select(1,2);
-            plot_fun(obj.im.img{2},fld,PctrRC{2},obj.PszRC,obj.bDSP,1);
-
-            sp.select(1,3);
-            plot_fun(obj.im.img{1},fld,PctrRC{1},obj.PszRC,obj.bDSP,1);
-            obj.faux_gamma_uncorrect();
-
-        end
-
-        % PLOT MAPS
-        for r = s:R
-        for c = 1:C
-            name=names{r-bIm};
-            sp.select(r,c);
-            if c==3; k=1; else; k=c; end
-
-            im=obj.(fld).(name){k};
-            if strcmp(name,'pht')
-                im=im.^.4;
-            elseif strcmp(name,'xyz')
-                im=im(:,:,3);
-            end
-
-
-            plot_fun(im,fld,PctrRC{k},obj.PszRC,obj.bDSP, 0);
-
-        end
-        end
-        sp.finalize(obj.bDSP);
-
-        function plot_fun(im,fld,PctrRC,PszRC,bDSP,bIm)
-
-            hold off
-            imagesc(real(im)); hold on;
-
-            if bIm & bDSP
-                return
-            elseif strcmp(fld,'mapsbuff') && ~bDSP
-                plotRectOnIm(PctrRC,PszRC(1),PszRC(2),'r',1,1);
-            elseif strcmp(fld,'mapsbuff') && bDSP
-                ysz=get(gca,'YLim');
-                xsz=get(gca,'XLim');
-                sz=[ysz(2)-ysz(1) xsz(2)-xsz(1)];
-                ctr=sz./2;
-                plotRectOnIm(ctr,PszRC(1),PszRC(2),'r',1,1);
-                plotRectOnIm(PctrRC,PszRC(1),PszRC(2),'y',1,1);
-            end
-        end
     end
-    function sp=get_sp(obj,clim,bPtch,bDC)
+    function sp=get_sp(obj,RC,clim, bPtch)
         Opts=struct();
 
-        bIm=~isempty(obj.im);
+        bImg=~isempty(obj.im);
         bXyz=ismember('xyz',obj.mapNames);
         bClim=~isempty(clim) & bXyz;
 
-        R=1+bXyz+bClim+bIm;
-        C=1+2*min([obj.bStereo,1]);
-        RC=[R C];
 
         % Row TITLE
         rtitl=cell(1+bXyz+bClim,1);
@@ -157,7 +239,7 @@ methods
         if bClim
             rtitl{3}='xyzAbs';
         end
-        if bIm
+        if bImg
             rtitl=['im'; rtitl];
         end
 
@@ -172,44 +254,195 @@ methods
         Opts.ylimRCBN='R';
         Opts.climRCBN='R';
         Opts.bImg=1;
+        Opts.rlabelLoc='left';
         %Opts.caxis;
         Opts.bImg=1;
-        sp=subPlots(RC,[],[],obj.get_sgtitle(bPtch),rtitl,ctitl,Opts);
+        sp=SubPlots(RC,[],[],obj.get_sgtitle(),rtitl,ctitl,Opts);
     end
-end
-methods(Access=protected)
+    function select(obj,Opts,r,c)
+        if Opts.bSP
+            Opts.sp.select(r,c);
+        else
+            subPlot([Opts.R Opts.C],r,c);
+        end
+    end
+    function plot_fun(obj,name,im,Opts,bRect,r)
+        for c = 1:3
+            obj.plot_fun_single(name,im,Opts,bRect,r,c);
+        end
+    end
+    function plot_fun_single(obj,name,im,Opts,bRect,r,c)
+        if c==3
+            k=1;
+        else
+            k=c;
+        end
+        LorR=CPs.getLorR(k);
+        obj.select(Opts,r,c);
+        hold off
+        imagesc(real(im{k})); hold on;
+        hold on;
+        if bRect; obj.plot_rect(Opts,k); end
+        if ~Opts.bSP
+            if r==1
+                title(LorR);
+            end
+            if c==1
+                ylabel(name);
+            end
+            obj.format_fun();
+        end
+        hold off
+
+    end
+    function format_fun(obj)
+        Fig.formatIm;
+        ax = gca;
+        outerpos = ax.OuterPosition;
+        ti = ax.TightInset;
+        left = outerpos(1) + ti(1);
+        bottom = outerpos(2) + ti(2);
+        ax_width = outerpos(3) - ti(1) - ti(3);
+        ax_height = outerpos(4) - ti(2) - ti(4);
+        ax.Position = [left bottom ax_width ax_height];
+    end
+    function plot_rect(obj,Opts,k)
+        if ~strcmp(Opts.fld,'mapsBuff')
+            return
+        end
+        Plot.rect(Opts.PctrRC{k}, Opts.PszRC(1), Opts.PszRC(2),'r',1,1);
+    end
 
     function obj=plot_map(obj,mapName)
         if ~exist('bNotitle','var') || isempty(bNoTitle)
             bNoTitle=0;
         end
-        map=obj.select_map(mapName);
+        map=obj.select_map_bi(mapName);
         imagesc(map);
-        formatImage();
-        formatFigure(mapName);
+        Fig.formatIm();
+        Fig.format(mapName);
         obj.apply_title();
     end
     function plot_map_in_context(obj,mapName)
         % XXX
     end
-    function titl=get_sgtitle(obj,bPtch)
-        if obj.bDSP & bPtch
-            str='Dsp';
-            pszRC=obj.PszRC;
-        elseif bPtch
-            str='Patch';
-            pszRC=obj.PszRC;
-        else
-            str='PatchBuff';
-            pszRC=obj.PszRCbuff;
-        end
+    function titl=get_sgtitle(obj)
         k=obj.srcInfo.K;
-        pszstr=[' [' strrep(num2strSane(pszRC),',' ,', ') '] ' ];
-        pstr=[' [' strrep(num2strSane(obj.srcInfo.PctrRC{k}),',' ,', ') '] ' ];
-        titl=[str ' ' num2str(obj.srcInfo.P) ' ' pszstr newline ...
-                  num2str(obj.srcInfo.I) obj.LR(k) pstr    '   '...
-                  'Bin ' num2str(obj.srcInfo.B) '.' num2str(obj.srcInfo.S) newline ...
-             ];
+        %pszstr=[' [' strrep(Num.toStr(pszRC),',' ,', ') '] ' ];
+        %pstr=[' [' strrep(Num.toStr(obj.srcInfo.PctrRC{k}),',' ,', ') '] ' ];
+        fname=obj.srcInfo.fname;
+        if iscell(fname)
+            fname=fname{1};
+        end
+        titl=[ num2str(obj.srcInfo.P) ': ' strrep(fname,'_','-') newline];
+    end
+end
+methods(Static)
+    function plotYXZ_fun(xyz,LorR,bZero,PszRC);
+    end
+    function plotXYZ3D_fun(xyz,pht,LorR,bZero,PszRC)
+        x=xyz(:,:,1);
+        y=xyz(:,:,2);
+        z=xyz(:,:,3);
+        mp=mat2gray(pht);
+        h=warp(x,z,y,mp);
+
+        set(gca, 'YDir','normal');
+        ylabel('Z');
+        grid on;
+        ctr=size(z)/2;
+        crpCtr=floor(ctr + 1);
+        C=xyz(ctr(1),ctr(2),:);
+        hold on
+
+        PszRCbuff=size(xyz(:,:,1));
+
+        % PLOT Direction
+        d=min(abs(diff([xlim; zlim; ylim],[],2)))/3.*squeeze(sign(C));
+        unit=abs(squeeze(C)./sqrt(sum(C.^2)));
+        k=reshape(unit.*d,[1,1,3]);
+        dot=C-k;
+        Plot.RC3([C; dot],'r');
+        nrm=squeeze(dot-C);
+
+        % Buff CROP RECT
+        UR=xyz(1,1,:);
+        UL=xyz(1,end,:);
+        LR=xyz(end,1,:);
+        LL=xyz(end,end,:);
+        RecB=[UR; UL; LL; LR; UR];
+        Plot.RC3(RecB,'r');
+        %sz=[diff(Num.minMax(x),[]) diff(Num.minMax(y),[])]
+
+
+        % MAP CROP RECT
+        if PszRC~=PszRCbuff
+            U=crpCtr(1)+PszRC(1)/2;
+            B=crpCtr(1)-PszRC(1)/2;
+            L=crpCtr(2)+PszRC(2)/2;
+            R=crpCtr(2)-PszRC(2)/2;
+
+            UR=xyz(U,R,:);
+            UL=xyz(U,L,:);
+            LR=xyz(B,R,:);
+            LL=xyz(B,L,:);
+            Rec=[UR; UL; LL; LR; UR];
+            Plot.RC3(Rec,'r','LineWidth',2);
+            t=Rec-k;
+            %Plot.RC3(t,'r');
+        end
+        %
+
+
+        %p=reshape(C,1,3,1);
+        %D=-p*nrm;
+        %r=abs(d(1));
+        %xx=linspace(p(1)-r,p(1)+r,2);
+        %yy=linspace(p(2)-r,p(2)+r,2);
+        %[xx,yy]=meshgrid(xx,yy);
+
+        %z = (-nrm(1)*xx - nrm(2)*yy - D)/nrm(3);
+        %rec=[xx(:) yy(:) z(:)];
+        %xy=sign([xx(:) yy(:)]);
+        %[~,ind]=sortrows(xy,'descend');
+        %rec=rec(ind,:);
+        %rec=[rec(1:2,:); rec(4,:); rec(3,:); rec(1,:)];
+        %Plot.RC3(rec,'r');
+
+
+        if bZero
+            Zer=C;
+            Zer(3)=1;
+            Plot.RC3(Zer,'.b');
+        end
+        title(LorR);
+        hold off;
+        axis square;
+        zd=abs(diff(xlim))/2;
+        zm=nanmedian(z,'all');
+        ylim([zm-zd zm+zd]);
+        axis square;
+        %zl=ylim;
+        %zl(1)=obj.win.win.posXYZm(3);
+        %ylim(zl);
+        %imagesc(pht)
+    end
+end
+methods(Static,Access=?PtchsViewer)
+    function P=getPlotP()
+        P={'sp',[],@(x) isempty(x) | isa(x,'SubPlots');
+           'clim',[],'isnumeric_2_e';
+           'pos',[],'isnumeric_4_e';
+           ...
+           'bImg',true,'isBinary_e';   % SHOW FPHT
+           'bPht',true','isBinary_e';   % SHOW FPHT
+           'bXYZ',true','isBinary_e';   % SHOW XYZ
+           ...
+           'bZer',false','isBinary_e';  % PATCH rect loc
+           'buffORptch','','ischar_e';
+           'bSP',false,'isBinary_e';   % USE SUBPLOTS aka sp
+           'bAnaglyph',false,'isBinary_e';
+        };
     end
 end
 end

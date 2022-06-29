@@ -1,7 +1,11 @@
-classdef ptchs_blk < handle
+classdef ptchs_blk < handle & ptch_link
 % TODO handle opts
 % TODO
 properties(Hidden=true)
+    INDSB
+    bLoadedB
+    fnamesB
+
     Blk
     bBlk=0
     blkBins
@@ -9,17 +13,33 @@ properties(Hidden=true)
 
     mode
     stdInd
-    blk
 
+    idxBlk
+    blk
 end
-methods
+properties(Access=private)
+end
+methods(Hidden=true)
+    function obj=clear_block_all(obj)
+        obj.Blk=[];
+        obj.bBlk=0;
+        obj.mode=[];
+        obj.stdInd=[];
+        obj.blk=[];
+        obj.blkBins=[];
+        obj.INDSB=[];
+        obj.bLoadedB=[];
+        obj.fnamesB=[];
+    end
     function obj=apply_block_all(obj,alias)
         obj.load_blk(alias);
+        %g=obj.ptchOpts.genOpts;
         obj.get_opts_from_blk();
         obj.init_INDSB();
     end
     function obj=exp_init(obj,alias,mode,lvlInd,blocks)
         obj.load_blk(alias);
+        p=obj.Blk('P');
         obj.select_block(mode,lvlInd,blocks);
         obj.get_opts_from_blk();
         obj.init_INDSB();
@@ -30,6 +50,7 @@ methods
         obj.INDSB=cell(n,1);
         obj.bLoadedB=false(n,1);
         ind=obj.Blk.blk('P').ret();
+
         obj.fnamesB=obj.fnames(ind);
     end
     function obj=get_opts_from_blk(obj)
@@ -58,7 +79,7 @@ methods
             case 'stmPosXYZm'
                 Sn.winInfo.posXYZm=val;
             case 'stmXYdeg'
-                Sn.winInfo.WHdeg=val;
+                Sn.winInfo.WHdegRaw=val; % NOTE RAW
             case 'wdwPszRCT'
                 Sn.wdwInfo.PszRCT=val;
             case 'wdwType'
@@ -79,10 +100,18 @@ methods
         end
         obj.ptchOpts=Sn;
     end
-    function obj=load_blk(obj,alias)
-        obj.Blk=Blk.load(alias);
+end
+methods(Access=protected)
+    function obj=load_blk(obj,aliasORblk)
+        if isa(aliasORblk,'Blk')
+            obj.Blk=aliasORblk;
+        elseif ischar(aliasORblk);
+            obj.Blk=Blk.load(aliasORblk);
+        end
         obj.bBlk=1;
     end
+end
+methods
     function obj=select_block(obj,mode,lvlInd,blocks)
         obj.Blk=obj.Blk.select_block(mode,lvlInd,blocks);
     end
@@ -144,89 +173,44 @@ methods
         obj.load_patches(obj,idx,trl);
     end
 %% LOAD
-    function out=get_interval_im(obj,trl,intrvl)
+    function out=is_stm_loaded(obj,trl,intrvl)
+        stmInd=obj.get_stmInd(trl,intrvl);
+        out=obj.bLoadedB(stmInd);
+    end
+    function [im,varargout]=get_interval_im(obj,trl,intrvl)
         stmInd=obj.get_stmInd(trl,intrvl);
         p=obj.get_patch_blk(stmInd);
-        out=p.im.img;
-    end
-    function p=get_patch_blk(obj,stmInd)
-        optsInd=obj.get_opts_ind_from_stmInd(stmInd);
-        dire=obj.get_dir();
-        if isempty(obj.INDSB{stmInd})
-            fname=[dire obj.fnamesB{stmInd}];
-            p=ptch.load(fname);
+        im=p.im.img;
+        if nargout == 1
+            return
+        end
+        if p.bDSP
+            varargout{1}=p.maps.xyz;
         else
-            p=obj.INDSB{stmInd};
+            varargout{1}=p.mapsBuff.xyz;
         end
-        p=obj.apply_ptchOpts(p,optsInd);
-    end
-    function ptchs=get_loaded_blk(obj)
-        ptchs=obj.INDSB(obj.bLoadedB);
-    end
-    function obj=load_all_patches_blk(obj)
-        inds=1:length(obj.fnamesB);
-        obj.load_patches_blk(inds);
-    end
-    function obj=load_patches_blk(obj,inds)
-        for i = 1:length(inds)
-            obj.load_patch_blk(inds(i));
-        end
-    end
-    function obj=load_patch_blk(obj,ind)
-        p=obj.get_patch_blk(ind);
-
-        obj.INDSB{ind}=p;
-        obj.bLoadedB(ind)=true;
-    end
-%% CLEAR
-    function obj=clear_not_needed(obj,trls,intrvls)
-        loadedInd=find(obj.bLoadedB);
-        if isempty(loadedInd)
+        if nargout == 2
             return
         end
-        if ~exist('intrvls','var')
-            intrvls=[];
-        end
-        stmInd=obj.get_stmInd(trls,intrvls);
-        inds=loadedInd(~ismember(loadedInd,stmInd));
-
-        obj.clear_blk(inds);
-    end
-    function obj=clear_blk(obj,inds)
-        if ~exist('inds','var') || isempty(inds)
-            obj.clear_loaded_blk();
-        end
-        for i = 1:inds
-            ind=inds(i);
-            obj.INDSB{ind}=[];
-            obj.bLoadedB(ind)=false;
-        end
-    end
-    function obj=clear_loaded_blk(obj)
-        if ~any(obj.bLoadedB)
-            return
-        end
-        obj.INDSB(obj.bLoadedB)={[]};
-        obj.bLoadedB(obj.bLoadedB)=false;
+        varargout{3}=p;
     end
 %% GET FROM BLK
     function bMotion=get_bMotion(obj)
-        bMotion=obj.Blk.get_bMotion();
-    end
-    function val=get_stmXYdeg(obj,trl,intrvl)
-        if ~exist('trl','var')
-            trl=[];
+        if ~isempty(obj.Blk)
+            bMotion=obj.Blk.get_bMotion();
+        else
+            bMotion=0;
         end
-        if ~exist('intrvl','var')
-            intrvl=[];
-        end
-        val=obj.get_interval_opt(trl,intrvl,'winInfo','WHdeg');
     end
     function nStm=get_nStm(obj)
         nStm=obj.Blk.get_nStm();
     end
     function nTrl=get_nTrial(obj)
-        nTrl=obj.Blk.get_nTrial();
+        if ~isempty(obj.Blk)
+            nTrl=obj.Blk.get_nTrial();
+        else
+            nTrl=length(obj.fnames);
+        end
     end
     function cmpX=get_cmpX(obj,trl,cmpNum)
         if ~exist('trl','var')
@@ -241,7 +225,11 @@ methods
         if ~exist('trl','var')
             trl=[];
         end
-        stdX=obj.Blk.get_stdX(trl);
+        if ~isempty(obj.Blk)
+            stdX=obj.Blk.get_stdX(trl);
+        else
+            stdX=zeros(numel(trl),1);
+        end
     end
     function intrvl=get_cmpIntrvl(obj,trl,cmpNum)
         if ~exist('trl','var')
@@ -250,7 +238,11 @@ methods
         if ~exist('cmpNum','var')
             cmpNum=[];
         end
-        intrvl=obj.Blk.get_cmpIntrvl(trl,cmpNum);
+        if ~isempty(obj.Blk)
+            intrvl=obj.Blk.get_cmpIntrvl(trl,cmpNum);
+        else
+            intrvl=0;
+        end
     end
 %% GET OPTS
     function val=get_duration(obj,trl,intrvl)
@@ -261,6 +253,29 @@ methods
             intrvl=[];
         end
         val=obj.get_interval_opt(trl,intrvl,[],'duration');
+    end
+    function val=get_stmXYdeg(obj,trl,intrvl)
+        if ~exist('trl','var')
+            trl=[];
+        end
+        if ~exist('intrvl','var')
+            intrvl=[];
+        end
+        val=obj.get_interval_opt(trl,intrvl,'winInfo','WHdegRaw');
+    end
+    function [X,Y]=get_stmXYpos(obj,trl,intrvl)
+        if ~exist('trl','var')
+            trl=[];
+        end
+        if ~exist('intrvl','var')
+            intrvl=[];
+        end
+        % XXX NOTE NEEDS TO BE CALCULATED
+        stmXYpos=obj.P.ptch.win.win.posXYpix;
+        TODO
+        val=obj.get_interval_opt(trl,intrvl,'trgtInfo','posXYpix');
+        X=val{1};
+        Y=val{2};
     end
     function val=get_interval_opt(obj,trl,intrvl,fld,opt)
         if ~isempty(fld) && ~endsWith(fld,'Info')
@@ -279,6 +294,12 @@ methods
             val=vals(ind,:,:,:,:);
         end
     end
+    function [dims,names]=get_dims(obj)
+        out=fldsMatchDims(obj.ptchOpts,1,size(obj.fnamesB,1));
+        inds=vertcat(out{:,2});
+        dims=out(inds,1);
 
+        names=cellfun(@(x) Blk_con.ptchOpts_struct_names_to_blk_names(x),dims,'UniformOutput',false);
+    end
 end
 end
