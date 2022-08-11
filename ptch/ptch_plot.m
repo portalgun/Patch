@@ -121,7 +121,7 @@ methods
         xyz=obj.mapsBuff.(name){k};
         z=xyz(:,:,3);
         imagesc(z);
-        hold on
+        hold on;
 
         ctr=size(z)/2;
         crpCtr=floor(ctr + 1);
@@ -136,9 +136,9 @@ methods
         LL=[B,L];
         Rec=[UR; UL; LL; LR; UR];
 
-        Fig.formatIm();
-        Fig.format();
-        hold off
+        Axis.formatIm();
+        Axis.format();
+        hold off;
     end
     function plotXYZMap(obj,k)
         if ~exist('k','var') || isempty(k)
@@ -146,8 +146,8 @@ methods
         end
         m=obj.maps.xyz{k}(:,:,3);
         imagesc(m);
-        Fig.formatIm();
-        Fig.format();
+        Axis.formatIm();
+        Axis.format();
     end
     function plotXYZMap3D(obj,k)
         if ~exist('k','var') || isempty(k)
@@ -296,7 +296,7 @@ methods(Access=protected)
 
     end
     function format_fun(obj)
-        Fig.formatIm;
+        Axis.formatIm;
         ax = gca;
         outerpos = ax.OuterPosition;
         ti = ax.TightInset;
@@ -319,8 +319,8 @@ methods(Access=protected)
         end
         map=obj.select_map_bi(mapName);
         imagesc(map);
-        Fig.formatIm();
-        Fig.format(mapName);
+        Axis.formatIm();
+        Axis.format(mapName);
         obj.apply_title();
     end
     function plot_map_in_context(obj,mapName)
